@@ -1,0 +1,19 @@
+[project]
+name = "new-manasuke"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "openai>=3.23.0",
+    "pydantic>=2.13.5",
+    "python-dotenv>=1.2.4",
+    "streamlit>=1.64.0",
+]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "ruff>=0.16.10",
+]
