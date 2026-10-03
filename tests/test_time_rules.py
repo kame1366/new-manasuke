@@ -11,6 +11,8 @@ from domain.time_rules import (
     start_of_next_day_jst,
     to_jst,
     to_utc,
+    to_db_utc,
+    from_db_utc,
 )
 
 
@@ -248,3 +250,31 @@ def test_to_jst_rejects_naive_datetime():
         match="datetime must be timezone-aware",
     ):
         to_jst(dt)
+
+
+def test_to_db_utc():
+    dt = datetime(
+        2026,
+        10,
+        3,
+        12,
+        30,
+        tzinfo=JST,
+    )
+
+    assert to_db_utc(dt) == "2026-10-03T03:30:00Z"
+
+
+def test_from_db_utc():
+    result = from_db_utc(
+        "2026-10-03T03:30:00Z"
+    )
+
+    assert result == datetime(
+        2026,
+        10,
+        3,
+        3,
+        30,
+        tzinfo=UTC,
+    )

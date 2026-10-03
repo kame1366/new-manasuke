@@ -13,6 +13,11 @@ __pycache__/
 *.sqlite
 *.sqlite3
 
+# SQLite runtime data
+data/*.db
+data/*.db-wal
+data/*.db-shm
+
 # pytest
 .pytest_cache/
 

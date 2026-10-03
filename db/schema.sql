@@ -1,0 +1,7 @@
+-- Manasuke database schema
+--
+-- The executable schema is managed through numbered migrations.
+-- See:
+--   db/migrations/001_initial.sql
+--
+-- Do not manually maintain a duplicate schema here.

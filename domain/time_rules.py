@@ -7,6 +7,8 @@ from domain.errors import DomainValidationError
 JST = ZoneInfo("Asia/Tokyo")
 UTC = ZoneInfo("UTC")
 
+DB_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+
 
 def ensure_aware(dt: datetime) -> None:
     """Ensure that a datetime has timezone information.
@@ -81,3 +83,24 @@ def start_of_next_day_jst(dt: datetime) -> datetime:
         second=0,
         microsecond=0,
     )
+
+
+def to_db_utc(dt: datetime) -> str:
+    """Convert an aware datetime to the DB UTC representation."""
+    utc_dt = to_utc(dt)
+    return utc_dt.strftime(DB_DATETIME_FORMAT)
+
+
+def from_db_utc(value: str) -> datetime:
+    """Parse a DB UTC datetime into an aware UTC datetime."""
+    try:
+        parsed = datetime.strptime(
+            value,
+            DB_DATETIME_FORMAT,
+        )
+    except ValueError as exc:
+        raise DomainValidationError(
+            f"invalid DB datetime: {value}"
+        ) from exc
+
+    return parsed.replace(tzinfo=UTC)
