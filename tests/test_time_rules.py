@@ -13,6 +13,8 @@ from domain.time_rules import (
     to_utc,
     to_db_utc,
     from_db_utc,
+    floor_to_5_minutes,
+    split_at_midnight,
 )
 
 
@@ -278,3 +280,253 @@ def test_from_db_utc():
         30,
         tzinfo=UTC,
     )
+
+
+def test_floor_to_5_minutes_exact_boundary():
+    dt = datetime(
+        2026,
+        10,
+        6,
+        10,
+        5,
+        tzinfo=JST,
+    )
+
+    result = floor_to_5_minutes(
+        dt
+    )
+
+    assert result == datetime(
+        2026,
+        10,
+        6,
+        10,
+        5,
+        tzinfo=JST,
+    )
+
+
+def test_floor_to_5_minutes_with_seconds():
+    dt = datetime(
+        2026,
+        10,
+        6,
+        10,
+        9,
+        59,
+        tzinfo=JST,
+    )
+
+    result = floor_to_5_minutes(
+        dt
+    )
+
+    assert result == datetime(
+        2026,
+        10,
+        6,
+        10,
+        5,
+        tzinfo=JST,
+    )
+
+
+def test_floor_to_5_minutes_before_first_boundary():
+    dt = datetime(
+        2026,
+        10,
+        6,
+        10,
+        4,
+        59,
+        tzinfo=JST,
+    )
+
+    result = floor_to_5_minutes(
+        dt
+    )
+
+    assert result == datetime(
+        2026,
+        10,
+        6,
+        10,
+        0,
+        tzinfo=JST,
+    )
+
+
+def test_floor_to_5_minutes_rejects_naive_datetime():
+    dt = datetime(
+        2026,
+        10,
+        6,
+        10,
+        0,
+    )
+
+    with pytest.raises(
+        DomainValidationError,
+        match=(
+            "datetime must be timezone-aware"
+        ),
+    ):
+        floor_to_5_minutes(
+            dt
+        )
+
+
+def test_split_at_midnight_same_day():
+    start_at = datetime(
+        2026,
+        10,
+        6,
+        18,
+        0,
+        tzinfo=JST,
+    )
+
+    end_at = datetime(
+        2026,
+        10,
+        6,
+        20,
+        0,
+        tzinfo=JST,
+    )
+
+    result = split_at_midnight(
+        start_at,
+        end_at,
+    )
+
+    assert result == [
+        (
+            start_at,
+            end_at,
+        )
+    ]
+
+
+def test_split_at_midnight_crosses_one_midnight():
+    result = split_at_midnight(
+        datetime(
+            2026,
+            10,
+            6,
+            23,
+            0,
+            tzinfo=JST,
+        ),
+        datetime(
+            2026,
+            10,
+            7,
+            1,
+            0,
+            tzinfo=JST,
+        ),
+    )
+
+    assert result == [
+        (
+            datetime(
+                2026,
+                10,
+                6,
+                23,
+                0,
+                tzinfo=JST,
+            ),
+            datetime(
+                2026,
+                10,
+                7,
+                0,
+                0,
+                tzinfo=JST,
+            ),
+        ),
+        (
+            datetime(
+                2026,
+                10,
+                7,
+                0,
+                0,
+                tzinfo=JST,
+            ),
+            datetime(
+                2026,
+                10,
+                7,
+                1,
+                0,
+                tzinfo=JST,
+            ),
+        ),
+    ]
+
+
+def test_split_at_midnight_exactly_ends_at_midnight():
+    result = split_at_midnight(
+        datetime(
+            2026,
+            10,
+            6,
+            23,
+            0,
+            tzinfo=JST,
+        ),
+        datetime(
+            2026,
+            10,
+            7,
+            0,
+            0,
+            tzinfo=JST,
+        ),
+    )
+
+    assert result == [
+        (
+            datetime(
+                2026,
+                10,
+                6,
+                23,
+                0,
+                tzinfo=JST,
+            ),
+            datetime(
+                2026,
+                10,
+                7,
+                0,
+                0,
+                tzinfo=JST,
+            ),
+        )
+    ]
+
+
+def test_split_at_midnight_rejects_invalid_interval():
+    dt = datetime(
+        2026,
+        10,
+        6,
+        20,
+        0,
+        tzinfo=JST,
+    )
+
+    with pytest.raises(
+        DomainValidationError,
+        match=(
+            "start_at must be earlier than end_at"
+        ),
+    ):
+        split_at_midnight(
+            dt,
+            dt,
+        )
