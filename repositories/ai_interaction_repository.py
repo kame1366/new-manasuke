@@ -12,15 +12,27 @@ from db.connection import (
     connect,
     transaction,
 )
+from domain.enums import (
+    AttemptStage,
+    AttemptStatus,
+)
 from domain.time_rules import (
     UTC,
     from_db_utc,
     to_db_utc,
 )
+from planning.attempt_errors import (
+    AttemptNotActiveError,
+    AttemptStageError,
+)
 
 
 AI_OPERATION_LEARNING_POLICY = (
     "LEARNING_POLICY_GENERATION"
+)
+
+AI_OPERATION_PLANNING = (
+    "PLANNING_GENERATION"
 )
 
 AI_STATUS_RUNNING = "RUNNING"
@@ -36,7 +48,6 @@ class AIInteractionRecord:
     id: int
 
     participant_id: str
-
     attempt_id: int | None
 
     operation_type: str
@@ -44,13 +55,13 @@ class AIInteractionRecord:
     created_at: datetime
 
     prompt_version: str
-
     model_name: str
 
-    structured_output_json: str | None
+    structured_output_json: (
+        str | None
+    )
 
     status: str
-
     error_type: str | None
 
 
@@ -63,6 +74,10 @@ class AIInteractionRepository:
             db_path
         )
 
+    # =====================================================
+    # AI①
+    # =====================================================
+
     def start(
         self,
         *,
@@ -71,12 +86,6 @@ class AIInteractionRepository:
         prompt_version: str,
         model_name: str,
     ) -> int:
-        """
-        RUNNING interactionを作成。
-
-        同participant / same operationで
-        既にRUNNINGなら拒否する。
-        """
         with transaction(
             self._db_path
         ) as connection:
@@ -160,28 +169,179 @@ class AIInteractionRepository:
                 interaction_id
             )
 
-    def mark_succeeded(
+    # =====================================================
+    # AI②
+    # =====================================================
+
+    def start_for_attempt(
         self,
         *,
         participant_id: str,
-        interaction_id: int,
-        structured_output_json: str,
-    ) -> None:
+        attempt_id: int,
+        prompt_version: str,
+        model_name: str,
+        now: datetime,
+    ) -> int:
+        """
+        AI②はattempt_id必須。
+
+        OpenAI呼び出し前に短Transactionで
+        RUNNING監査レコードだけ作る。
+        """
         with transaction(
             self._db_path
         ) as connection:
-            self.mark_succeeded_in_transaction(
-                connection,
-                participant_id=(
-                    participant_id
+            attempt = connection.execute(
+                """
+                SELECT
+                    status,
+                    stage
+                FROM plan_generation_attempts
+                WHERE participant_id = ?
+                  AND id = ?
+                """,
+                (
+                    participant_id,
+                    attempt_id,
                 ),
-                interaction_id=(
-                    interaction_id
+            ).fetchone()
+
+            if attempt is None:
+                raise AttemptNotActiveError(
+                    "Attempt not found"
+                )
+
+            if (
+                attempt["status"]
+                != AttemptStatus
+                .IN_PROGRESS
+                .value
+            ):
+                raise AttemptNotActiveError(
+                    "Attempt is not IN_PROGRESS"
+                )
+
+            if (
+                attempt["stage"]
+                != AttemptStage
+                .AI_PLANNING
+                .value
+            ):
+                raise AttemptStageError(
+                    "AI② may start only in "
+                    "AI_PLANNING stage"
+                )
+
+            running = connection.execute(
+                """
+                SELECT id
+                FROM ai_interactions
+                WHERE participant_id = ?
+                  AND attempt_id = ?
+                  AND operation_type = ?
+                  AND status = ?
+                LIMIT 1
+                """,
+                (
+                    participant_id,
+                    attempt_id,
+                    AI_OPERATION_PLANNING,
+                    AI_STATUS_RUNNING,
                 ),
-                structured_output_json=(
-                    structured_output_json
+            ).fetchone()
+
+            if running is not None:
+                raise (
+                    AIInteractionAlreadyRunningError(
+                        "Planning AI is already "
+                        "running for Attempt"
+                    )
+                )
+
+            cursor = connection.execute(
+                """
+                INSERT INTO ai_interactions (
+                    participant_id,
+                    attempt_id,
+                    operation_type,
+                    created_at,
+                    prompt_version,
+                    model_name,
+                    structured_output_json,
+                    status,
+                    error_type
+                )
+                VALUES (?, ?, ?, ?, ?, ?, NULL, ?, NULL)
+                """,
+                (
+                    participant_id,
+                    attempt_id,
+                    AI_OPERATION_PLANNING,
+                    to_db_utc(
+                        now
+                    ),
+                    prompt_version,
+                    model_name,
+                    AI_STATUS_RUNNING,
                 ),
             )
+
+            interaction_id = (
+                cursor.lastrowid
+            )
+
+            if interaction_id is None:
+                raise RuntimeError(
+                    "failed to create "
+                    "planning AIInteraction"
+                )
+
+            return int(
+                interaction_id
+            )
+
+    @staticmethod
+    def mark_succeeded_for_attempt_in_transaction(
+        connection: sqlite3.Connection,
+        *,
+        participant_id: str,
+        attempt_id: int,
+        interaction_id: int,
+        structured_output_json: str,
+    ) -> None:
+        cursor = connection.execute(
+            """
+            UPDATE ai_interactions
+            SET
+                status = ?,
+                structured_output_json = ?,
+                error_type = NULL
+            WHERE participant_id = ?
+              AND attempt_id = ?
+              AND id = ?
+              AND operation_type = ?
+              AND status = ?
+            """,
+            (
+                AI_STATUS_SUCCEEDED,
+                structured_output_json,
+                participant_id,
+                attempt_id,
+                interaction_id,
+                AI_OPERATION_PLANNING,
+                AI_STATUS_RUNNING,
+            ),
+        )
+
+        if cursor.rowcount != 1:
+            raise RuntimeError(
+                "RUNNING planning AIInteraction "
+                "not found"
+            )
+
+    # =====================================================
+    # Generic completion
+    # =====================================================
 
     @staticmethod
     def mark_succeeded_in_transaction(
@@ -215,6 +375,25 @@ class AIInteractionRepository:
             raise RuntimeError(
                 "RUNNING AIInteraction "
                 "not found"
+            )
+
+    def mark_succeeded(
+        self,
+        *,
+        participant_id: str,
+        interaction_id: int,
+        structured_output_json: str,
+    ) -> None:
+        with transaction(
+            self._db_path
+        ) as connection:
+            self.mark_succeeded_in_transaction(
+                connection,
+                participant_id=participant_id,
+                interaction_id=interaction_id,
+                structured_output_json=(
+                    structured_output_json
+                ),
             )
 
     def mark_failed(
@@ -251,6 +430,10 @@ class AIInteractionRepository:
                     "RUNNING AIInteraction "
                     "not found"
                 )
+
+    # =====================================================
+    # Read
+    # =====================================================
 
     def get_by_id(
         self,
@@ -351,7 +534,9 @@ class AIInteractionRepository:
                 row["id"]
             ),
             participant_id=str(
-                row["participant_id"]
+                row[
+                    "participant_id"
+                ]
             ),
             attempt_id=(
                 int(
@@ -364,16 +549,22 @@ class AIInteractionRepository:
                 else None
             ),
             operation_type=str(
-                row["operation_type"]
+                row[
+                    "operation_type"
+                ]
             ),
             created_at=from_db_utc(
                 row["created_at"]
             ),
             prompt_version=str(
-                row["prompt_version"]
+                row[
+                    "prompt_version"
+                ]
             ),
             model_name=str(
-                row["model_name"]
+                row[
+                    "model_name"
+                ]
             ),
             structured_output_json=(
                 row[
@@ -384,8 +575,6 @@ class AIInteractionRepository:
                 row["status"]
             ),
             error_type=(
-                row[
-                    "error_type"
-                ]
+                row["error_type"]
             ),
         )
