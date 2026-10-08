@@ -1,14 +1,24 @@
 from __future__ import annotations
 
+import sqlite3
 from datetime import datetime
 from pathlib import Path
-import sqlite3
 
-from db.connection import connect, transaction
+from db.connection import (
+    connect,
+    transaction,
+)
 from domain.enums import Importance
-from domain.errors import DomainValidationError
-from domain.models import LearningPolicy
-from domain.time_rules import UTC, to_db_utc
+from domain.errors import (
+    DomainValidationError,
+)
+from domain.models import (
+    LearningPolicy,
+)
+from domain.time_rules import (
+    UTC,
+    to_db_utc,
+)
 from repositories.participant_repository import (
     ParticipantRepository,
 )
@@ -19,14 +29,18 @@ class LearningPolicyRepository:
         self,
         db_path: str | Path,
     ) -> None:
-        self._db_path = Path(db_path)
+        self._db_path = Path(
+            db_path
+        )
 
     def create(
         self,
         participant_id: str,
         policy: LearningPolicy,
     ) -> None:
-        with transaction(self._db_path) as connection:
+        with transaction(
+            self._db_path
+        ) as connection:
             self.insert(
                 connection,
                 participant_id,
@@ -51,7 +65,9 @@ class LearningPolicyRepository:
         )
 
         now_text = to_db_utc(
-            datetime.now(UTC)
+            datetime.now(
+                UTC
+            )
         )
 
         connection.execute(
@@ -84,12 +100,88 @@ class LearningPolicyRepository:
             ),
         )
 
+    def upsert(
+        self,
+        connection: sqlite3.Connection,
+        participant_id: str,
+        policy: LearningPolicy,
+    ) -> None:
+        """
+        既存transaction内で
+        create/updateを行う。
+
+        planning_data_versionは
+        このmethodでは変更しない。
+        """
+        self._ensure_target_belongs_to_participant(
+            connection,
+            participant_id,
+            policy.study_target_id,
+        )
+
+        now_text = to_db_utc(
+            datetime.now(
+                UTC
+            )
+        )
+
+        connection.execute(
+            """
+            INSERT INTO learning_policies (
+                participant_id,
+                study_target_id,
+                purpose,
+                policy_priority,
+                normal_sessions_per_week,
+                normal_minutes,
+                minimum_sessions_per_week,
+                minimum_minutes,
+                created_at,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+
+            ON CONFLICT(
+                participant_id,
+                study_target_id
+            )
+            DO UPDATE SET
+                purpose = excluded.purpose,
+                policy_priority =
+                    excluded.policy_priority,
+                normal_sessions_per_week =
+                    excluded.normal_sessions_per_week,
+                normal_minutes =
+                    excluded.normal_minutes,
+                minimum_sessions_per_week =
+                    excluded.minimum_sessions_per_week,
+                minimum_minutes =
+                    excluded.minimum_minutes,
+                updated_at =
+                    excluded.updated_at
+            """,
+            (
+                participant_id,
+                policy.study_target_id,
+                policy.purpose,
+                policy.policy_priority.value,
+                policy.normal_sessions_per_week,
+                policy.normal_minutes,
+                policy.minimum_sessions_per_week,
+                policy.minimum_minutes,
+                now_text,
+                now_text,
+            ),
+        )
+
     def update(
         self,
         participant_id: str,
         policy: LearningPolicy,
     ) -> None:
-        with transaction(self._db_path) as connection:
+        with transaction(
+            self._db_path
+        ) as connection:
             self._ensure_target_belongs_to_participant(
                 connection,
                 participant_id,
@@ -118,7 +210,9 @@ class LearningPolicyRepository:
                     policy.minimum_sessions_per_week,
                     policy.minimum_minutes,
                     to_db_utc(
-                        datetime.now(UTC)
+                        datetime.now(
+                            UTC
+                        )
                     ),
                     participant_id,
                     policy.study_target_id,
@@ -178,7 +272,9 @@ class LearningPolicyRepository:
     def list_by_participant(
         self,
         participant_id: str,
-    ) -> list[LearningPolicy]:
+    ) -> list[
+        LearningPolicy
+    ]:
         connection = connect(
             self._db_path
         )
@@ -198,11 +294,15 @@ class LearningPolicyRepository:
                 WHERE participant_id = ?
                 ORDER BY study_target_id
                 """,
-                (participant_id,),
+                (
+                    participant_id,
+                ),
             ).fetchall()
 
             return [
-                self._row_to_model(row)
+                self._row_to_model(
+                    row
+                )
                 for row in rows
             ]
 
@@ -240,24 +340,40 @@ class LearningPolicyRepository:
     ) -> LearningPolicy:
         return LearningPolicy(
             study_target_id=int(
-                row["study_target_id"]
+                row[
+                    "study_target_id"
+                ]
             ),
             purpose=str(
-                row["purpose"]
+                row[
+                    "purpose"
+                ]
             ),
-            policy_priority=Importance(
-                row["policy_priority"]
+            policy_priority=(
+                Importance(
+                    row[
+                        "policy_priority"
+                    ]
+                )
             ),
             normal_sessions_per_week=int(
-                row["normal_sessions_per_week"]
+                row[
+                    "normal_sessions_per_week"
+                ]
             ),
             normal_minutes=int(
-                row["normal_minutes"]
+                row[
+                    "normal_minutes"
+                ]
             ),
             minimum_sessions_per_week=int(
-                row["minimum_sessions_per_week"]
+                row[
+                    "minimum_sessions_per_week"
+                ]
             ),
             minimum_minutes=int(
-                row["minimum_minutes"]
+                row[
+                    "minimum_minutes"
+                ]
             ),
         )

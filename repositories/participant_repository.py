@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import sqlite3
 from datetime import datetime
 from pathlib import Path
-import sqlite3
 
-from db.connection import connect, transaction
-from domain.errors import DomainValidationError
-from domain.time_rules import to_db_utc
+from db.connection import (
+    connect,
+    transaction,
+)
+from domain.errors import (
+    DomainValidationError,
+)
+from domain.time_rules import (
+    to_db_utc,
+)
 
 
 class ParticipantRepository:
@@ -14,7 +21,9 @@ class ParticipantRepository:
         self,
         db_path: str | Path,
     ) -> None:
-        self._db_path = Path(db_path)
+        self._db_path = Path(
+            db_path
+        )
 
     def create(
         self,
@@ -36,7 +45,9 @@ class ParticipantRepository:
         participant_id: str,
         created_at: datetime,
     ) -> None:
-        normalized_id = participant_id.strip()
+        normalized_id = (
+            participant_id.strip()
+        )
 
         if not normalized_id:
             raise DomainValidationError(
@@ -54,7 +65,9 @@ class ParticipantRepository:
             """,
             (
                 normalized_id,
-                to_db_utc(created_at),
+                to_db_utc(
+                    created_at
+                ),
             ),
         )
 
@@ -92,26 +105,41 @@ class ParticipantRepository:
         )
 
         try:
-            row = connection.execute(
-                """
-                SELECT planning_data_version
-                FROM participants
-                WHERE id = ?
-                """,
-                (
+            return (
+                self
+                .get_planning_data_version_in_transaction(
+                    connection,
                     participant_id,
-                ),
-            ).fetchone()
-
-            if row is None:
-                return None
-
-            return int(
-                row["planning_data_version"]
+                )
             )
 
         finally:
             connection.close()
+
+    @staticmethod
+    def get_planning_data_version_in_transaction(
+        connection: sqlite3.Connection,
+        participant_id: str,
+    ) -> int | None:
+        row = connection.execute(
+            """
+            SELECT planning_data_version
+            FROM participants
+            WHERE id = ?
+            """,
+            (
+                participant_id,
+            ),
+        ).fetchone()
+
+        if row is None:
+            return None
+
+        return int(
+            row[
+                "planning_data_version"
+            ]
+        )
 
     @staticmethod
     def increment_planning_data_version(
@@ -132,5 +160,6 @@ class ParticipantRepository:
 
         if cursor.rowcount != 1:
             raise DomainValidationError(
-                f"participant not found: {participant_id}"
+                "participant not found: "
+                f"{participant_id}"
             )
