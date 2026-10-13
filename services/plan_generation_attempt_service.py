@@ -48,6 +48,7 @@ from planning.plan_validator import (
     MinimumPolicyRequirement,
     PlanValidator,
 )
+from planning.replan_rules import CarryForwardPlanItem
 from repositories.plan_generation_attempt_repository import (
     ERROR_PLANNING_DATA_CHANGED,
     PlanGenerationAttemptRepository,
@@ -238,6 +239,9 @@ class PlanGenerationAttemptService:
         busy_events: Sequence[
             BusyEvent
         ],
+        carried_items: Sequence[
+            CarryForwardPlanItem
+        ] = (),
         minimum_requirements: Sequence[
             MinimumPolicyRequirement
         ] = (),
@@ -248,16 +252,10 @@ class PlanGenerationAttemptService:
         | None = None,
         now: datetime,
     ) -> Plan:
-        """
-        Scheduler成功後:
-
-        1. in-memory proposed Plan作成
-        2. PlanValidator
-        3. atomic final save
-        """
         ensure_aware(
             effective_from
         )
+
         ensure_aware(
             now
         )
@@ -299,7 +297,6 @@ class PlanGenerationAttemptService:
         )
 
         proposed_plan = Plan(
-            # DB保存前のin-memory ID。
             id=1,
             participant_id=(
                 participant_id
@@ -318,11 +315,72 @@ class PlanGenerationAttemptService:
             ),
         )
 
-        proposed_items = (
-            self._to_plan_items(
-                scheduled_chunks
+        proposed_items: list[
+            PlanItem
+        ] = []
+
+        temporary_id = 1
+
+        # carry-forward USER_MODIFIEDを
+        # validatorへ含める。
+        for carried in carried_items:
+            proposed_items.append(
+                carried.to_plan_item(
+                    plan_id=1,
+                    temporary_id=(
+                        temporary_id
+                    ),
+                )
             )
-        )
+
+            temporary_id += 1
+
+        for placement in sorted(
+            scheduled_chunks,
+            key=lambda item: (
+                item.start_at,
+                item.end_at,
+                item.chunk.chunk_id,
+            ),
+        ):
+            proposed_items.append(
+                PlanItem(
+                    id=temporary_id,
+                    plan_id=1,
+                    study_target_id=(
+                        placement
+                        .chunk
+                        .study_target_id
+                    ),
+                    start_at=(
+                        placement.start_at
+                    ),
+                    end_at=(
+                        placement.end_at
+                    ),
+                    origin=(
+                        PlanItemOrigin
+                        .SYSTEM_GENERATED
+                    ),
+                    planned_minutes=(
+                        placement
+                        .chunk
+                        .scheduled_duration_minutes
+                    ),
+                    range_start=(
+                        placement
+                        .chunk
+                        .range_start
+                    ),
+                    range_end=(
+                        placement
+                        .chunk
+                        .range_end
+                    ),
+                )
+            )
+
+            temporary_id += 1
 
         validation = (
             self._validator.validate(
@@ -391,6 +449,9 @@ class PlanGenerationAttemptService:
                     ),
                     scheduled_chunks=(
                         scheduled_chunks
+                    ),
+                    carried_items=(
+                        carried_items
                     ),
                     now=now,
                 )

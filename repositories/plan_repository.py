@@ -30,6 +30,9 @@ from planning.placement_engine import (
 from repositories.plan_generation_attempt_repository import (
     PlanGenerationAttemptRepository,
 )
+from planning.replan_rules import (
+    CarryForwardPlanItem,
+)
 
 
 class PlanRepository:
@@ -51,24 +54,11 @@ class PlanRepository:
         scheduled_chunks: Sequence[
             ScheduledChunk
         ],
+        carried_items: Sequence[
+            CarryForwardPlanItem
+        ] = (),
         now: datetime,
     ) -> Plan:
-        """
-        最終Plan保存。
-
-        同一Transaction内で:
-
-        1. Attempt IN_PROGRESS確認
-        2. stage=SCHEDULING確認
-        3. planning_data_version確認
-        4. next version_no採番
-        5. Plan INSERT
-        6. PlanItems INSERT
-        7. resulting_plan_id
-        8. Attempt SUCCEEDED
-
-        を行う。
-        """
         with transaction(
             self._db_path
         ) as connection:
@@ -167,6 +157,95 @@ class PlanRepository:
                     "failed to insert Plan"
                 )
 
+            # ==========================================
+            # carry-forward USER_MODIFIED
+            # ==========================================
+
+            for carried in sorted(
+                carried_items,
+                key=lambda item: (
+                    item.start_at,
+                    item.end_at,
+                    item.source_plan_item_id,
+                ),
+            ):
+                target_exists = (
+                    connection.execute(
+                        """
+                        SELECT 1
+                        FROM study_targets
+                        WHERE participant_id = ?
+                        AND id = ?
+                        """,
+                        (
+                            participant_id,
+                            carried.study_target_id,
+                        ),
+                    ).fetchone()
+                )
+
+                if target_exists is None:
+                    raise DomainValidationError(
+                        "carry-forward item "
+                        "references invalid "
+                        "StudyTarget"
+                    )
+
+                connection.execute(
+                    """
+                    INSERT INTO plan_items (
+                        plan_id,
+                        study_target_id,
+                        start_at,
+                        end_at,
+                        origin,
+                        is_cancelled,
+                        cancelled_at,
+                        carried_from_plan_item_id,
+                        planned_minutes,
+                        range_start,
+                        range_end,
+                        created_at
+                    )
+                    VALUES (
+                        ?, ?, ?, ?, ?,
+                        0,
+                        NULL,
+                        ?,
+                        ?, ?, ?, ?
+                    )
+                    """,
+                    (
+                        plan_id,
+                        carried.study_target_id,
+                        to_db_utc(
+                            carried.start_at
+                        ),
+                        to_db_utc(
+                            carried.end_at
+                        ),
+                        (
+                            PlanItemOrigin
+                            .USER_MODIFIED
+                            .value
+                        ),
+                        (
+                            carried
+                            .source_plan_item_id
+                        ),
+                        carried.planned_minutes,
+                        carried.range_start,
+                        carried.range_end,
+                        to_db_utc(
+                            now
+                        ),
+                    ),
+                )
+
+            # ==========================================
+            # newly generated PlanItems
+            # ==========================================
+
             for placement in sorted(
                 scheduled_chunks,
                 key=lambda item: (
@@ -181,7 +260,7 @@ class PlanRepository:
                         SELECT 1
                         FROM study_targets
                         WHERE participant_id = ?
-                          AND id = ?
+                        AND id = ?
                         """,
                         (
                             participant_id,
@@ -218,7 +297,9 @@ class PlanRepository:
                     )
                     VALUES (
                         ?, ?, ?, ?, ?,
-                        0, NULL, NULL,
+                        0,
+                        NULL,
+                        NULL,
                         ?, ?, ?, ?
                     )
                     """,
@@ -271,9 +352,9 @@ class PlanRepository:
                     error_type = NULL,
                     resulting_plan_id = ?
                 WHERE participant_id = ?
-                  AND id = ?
-                  AND status = ?
-                  AND stage = ?
+                AND id = ?
+                AND status = ?
+                AND stage = ?
                 """,
                 (
                     AttemptStatus
