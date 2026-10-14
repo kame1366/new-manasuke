@@ -132,6 +132,9 @@ class AvailabilityRepository:
         event: BusyEvent,
         note: str | None = None,
     ) -> int:
+        if note is None:
+            note = event.note
+
         with transaction(self._db_path) as connection:
             event_id = self.insert_busy_event(
                 connection,
@@ -154,6 +157,9 @@ class AvailabilityRepository:
         event: BusyEvent,
         note: str | None = None,
     ) -> int:
+        if note is None:
+            note = event.note
+
         cursor = connection.execute(
             """
             INSERT INTO busy_events (
@@ -194,7 +200,8 @@ class AvailabilityRepository:
                 """
                 SELECT
                     start_at,
-                    end_at
+                    end_at,
+                    note
                 FROM busy_events
                 WHERE participant_id = ?
                 ORDER BY start_at, id
@@ -210,6 +217,7 @@ class AvailabilityRepository:
                     end_at=from_db_utc(
                         row["end_at"]
                     ),
+                    note=row["note"],
                 )
                 for row in rows
             ]
@@ -227,6 +235,9 @@ class AvailabilityRepository:
         event: ExtraAvailableTime,
         note: str | None = None,
     ) -> int:
+        if note is None:
+            note = event.note
+
         with transaction(self._db_path) as connection:
             event_id = (
                 self.insert_extra_available_time(
@@ -251,6 +262,9 @@ class AvailabilityRepository:
         event: ExtraAvailableTime,
         note: str | None = None,
     ) -> int:
+        if note is None:
+            note = event.note
+
         cursor = connection.execute(
             """
             INSERT INTO extra_available_times (
@@ -291,7 +305,8 @@ class AvailabilityRepository:
                 """
                 SELECT
                     start_at,
-                    end_at
+                    end_at,
+                    note
                 FROM extra_available_times
                 WHERE participant_id = ?
                 ORDER BY start_at, id
@@ -307,6 +322,7 @@ class AvailabilityRepository:
                     end_at=from_db_utc(
                         row["end_at"]
                     ),
+                    note=row["note"],
                 )
                 for row in rows
             ]

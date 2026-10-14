@@ -484,6 +484,7 @@ name = "new-manasuke"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "certifi" },
     { name = "openai" },
     { name = "pydantic" },
     { name = "python-dotenv" },
@@ -499,6 +500,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "certifi", specifier = ">=2026.7.22" },
     { name = "openai", specifier = ">=3.23.0" },
     { name = "pydantic", specifier = ">=2.13.5" },
     { name = "python-dotenv", specifier = ">=1.2.4" },

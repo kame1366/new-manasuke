@@ -118,71 +118,82 @@ class PlacementEngine:
         self,
         *,
         chunk: WorkChunk,
-        free_slots: Sequence[
-            FreeSlot
-        ],
-        used_study_days: Set[
-            date
-        ] = frozenset(),
-        additional_not_before: datetime
-        | None = None,
+        free_slots: Sequence[FreeSlot],
+        used_study_days: frozenset[date] = frozenset(),
+        additional_not_before: datetime | None = None,
         prefer_new_study_day: bool = True,
     ) -> PlacementOutcome:
-        if additional_not_before is not None:
-            ensure_aware(
+        """
+        WorkChunkを最も早い有効FreeSlotへ配置する。
+
+        prefer_new_study_day=Trueの場合も、
+        distributed practiceはSoft preference。
+
+        まず未使用study dayを優先し、
+        そこに配置できなければ
+        既使用study dayへfallbackする。
+        """
+
+        effective_not_before = (
+            chunk.not_before
+        )
+
+        if (
+            additional_not_before
+            is not None
+            and (
+                effective_not_before is None
+                or additional_not_before
+                > effective_not_before
+            )
+        ):
+            effective_not_before = (
                 additional_not_before
             )
 
-        candidates: list[
+        all_candidates: list[
             tuple[
-                bool,
+                FreeSlot,
                 datetime,
                 datetime,
-                int,
             ]
         ] = []
 
-        for index, slot in enumerate(
-            free_slots
-        ):
-            candidate_start = (
-                slot.start_at
-            )
-
-            boundaries = [
-                boundary
-                for boundary in (
-                    chunk.not_before,
-                    additional_not_before,
-                )
-                if boundary is not None
+        preferred_candidates: list[
+            tuple[
+                FreeSlot,
+                datetime,
+                datetime,
             ]
+        ] = []
 
-            if boundaries:
-                lower_bound = max(
-                    boundaries
-                )
-
-                if (
-                    candidate_start
-                    < lower_bound
-                ):
-                    candidate_start = (
-                        ceil_to_5_minutes(
-                            lower_bound
-                        )
-                    )
+        for slot in sorted(
+            free_slots,
+            key=lambda value: (
+                value.start_at,
+                value.end_at,
+            ),
+        ):
+            start_at = slot.start_at
 
             if (
-                candidate_start
-                < slot.start_at
+                effective_not_before
+                is not None
+                and start_at
+                < effective_not_before
             ):
-                candidate_start = (
-                    slot.start_at
+                start_at = (
+                    effective_not_before
                 )
 
-            candidate_end = (
-                candidate_start
+            start_at = (
+                ceil_to_5_minutes(
+                    start_at
+                )
+            )
+
+            end_at = (
+                start_at
                 + timedelta(
                     minutes=(
                         chunk
@@ -191,36 +202,68 @@ class PlacementEngine:
                 )
             )
 
-            if (
-                candidate_end
-                > slot.end_at
-            ):
+            if end_at > slot.end_at:
                 continue
 
             if (
                 chunk.must_finish_before
                 is not None
-                and candidate_end
+                and end_at
                 > chunk.must_finish_before
             ):
                 continue
 
-            study_day = to_jst(
-                candidate_start
-            ).date()
-
-            already_used = (
-                study_day
-                in used_study_days
+            local_start = (
+                to_jst(
+                    start_at
+                )
             )
 
-            candidates.append(
-                (
-                    already_used,
-                    candidate_start,
-                    candidate_end,
-                    index,
+            local_end = (
+                to_jst(
+                    end_at
                 )
+            )
+
+            if (
+                local_start.date()
+                != local_end.date()
+            ):
+                continue
+
+            candidate = (
+                slot,
+                start_at,
+                end_at,
+            )
+
+            all_candidates.append(
+                candidate
+            )
+
+            study_day = (
+                local_start.date()
+            )
+
+            if (
+                study_day
+                not in used_study_days
+            ):
+                preferred_candidates.append(
+                    candidate
+                )
+
+        if (
+            prefer_new_study_day
+            and preferred_candidates
+        ):
+            candidates = (
+                preferred_candidates
+            )
+
+        else:
+            candidates = (
+                all_candidates
             )
 
         if not candidates:
@@ -231,28 +274,13 @@ class PlacementEngine:
                 ),
             )
 
-        if prefer_new_study_day:
-            candidates.sort(
-                key=lambda item: (
-                    item[0],
-                    item[1],
-                    item[3],
-                )
-            )
-        else:
-            candidates.sort(
-                key=lambda item: (
-                    item[1],
-                    item[3],
-                )
-            )
-
-        (
-            _already_used,
-            start_at,
-            end_at,
-            slot_index,
-        ) = candidates[0]
+        slot, start_at, end_at = min(
+            candidates,
+            key=lambda value: (
+                value[1],
+                value[2],
+            ),
+        )
 
         placement = ScheduledChunk(
             chunk=chunk,
@@ -260,19 +288,25 @@ class PlacementEngine:
             end_at=end_at,
         )
 
-        remaining = (
-            self._consume_slot(
-                free_slots=free_slots,
-                slot_index=slot_index,
-                start_at=start_at,
-                end_at=end_at,
+        remaining_slots = (
+            self._subtract_placement(
+                free_slots=(
+                    free_slots
+                ),
+                used_slot=slot,
+                placement_start=(
+                    start_at
+                ),
+                placement_end=(
+                    end_at
+                ),
             )
         )
 
         return PlacementOutcome(
             placement=placement,
-            remaining_slots=tuple(
-                remaining
+            remaining_slots=(
+                remaining_slots
             ),
         )
 
@@ -351,3 +385,86 @@ class PlacementEngine:
         )
 
         return result
+
+    def _subtract_placement(
+        self,
+        *,
+        free_slots: Sequence[
+            FreeSlot
+        ],
+        used_slot: FreeSlot,
+        placement_start: datetime,
+        placement_end: datetime,
+    ) -> tuple[
+        FreeSlot,
+        ...,
+    ]:
+        result: list[
+            FreeSlot
+        ] = []
+
+        for slot in free_slots:
+            if slot != used_slot:
+                result.append(
+                    slot
+                )
+                continue
+
+            # 左側の残り
+            if (
+                slot.start_at
+                < placement_start
+            ):
+                left = FreeSlot(
+                    start_at=(
+                        slot.start_at
+                    ),
+                    end_at=(
+                        placement_start
+                    ),
+                )
+
+                if (
+                    left.end_at
+                    - left.start_at
+                ) >= timedelta(
+                    minutes=10
+                ):
+                    result.append(
+                        left
+                    )
+
+            # 右側の残り
+            if (
+                placement_end
+                < slot.end_at
+            ):
+                right = FreeSlot(
+                    start_at=(
+                        placement_end
+                    ),
+                    end_at=(
+                        slot.end_at
+                    ),
+                )
+
+                if (
+                    right.end_at
+                    - right.start_at
+                ) >= timedelta(
+                    minutes=10
+                ):
+                    result.append(
+                        right
+                    )
+
+        result.sort(
+            key=lambda value: (
+                value.start_at,
+                value.end_at,
+            )
+        )
+
+        return tuple(
+            result
+        )

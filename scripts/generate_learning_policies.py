@@ -1,18 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 from openai import OpenAI
-
-from ai.learning_policy_generator import (
-    LearningPolicyGenerator,
-)
-from config import get_settings
-from services.learning_policy_generation_service import (
-    LearningPolicyGenerationService,
-)
-
 
 PROJECT_ROOT = (
     Path(__file__)
@@ -28,6 +20,20 @@ DEFAULT_DB_PATH = (
 
 
 def main() -> None:
+    if str(PROJECT_ROOT) not in sys.path:
+        sys.path.insert(
+            0,
+            str(PROJECT_ROOT),
+        )
+
+    from ai.learning_policy_generator import (
+        LearningPolicyGenerator,
+    )
+    from config import get_settings
+    from services.learning_policy_generation_service import (
+        LearningPolicyGenerationService,
+    )
+
     parser = argparse.ArgumentParser(
         description=(
             "Generate LearningPolicies "

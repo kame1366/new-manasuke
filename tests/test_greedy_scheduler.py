@@ -501,3 +501,55 @@ def test_scheduler_is_deterministic():
         for placement
         in second.placements
     ]
+
+    def test_same_target_can_use_multiple_sessions_same_day_when_distribution_disabled():
+        chunks = [
+            theme_chunk(
+                chunk_id=f"chunk-{index}",
+                target_id=1,
+                duration=30,
+                sequence_no=index,
+            )
+            for index in range(3)
+        ]
+
+        slots = [
+            FreeSlot(
+                start_at=dt(
+                    8,
+                    18,
+                    0,
+                ),
+                end_at=dt(
+                    8,
+                    20,
+                    0,
+                ),
+            )
+        ]
+
+        scheduler = (
+            GreedyScheduler()
+        )
+
+        result = scheduler.schedule(
+            chunks=chunks,
+            free_slots=slots,
+            prefer_distributed_practice=False,
+        )
+
+        assert result.success
+
+        assert len(
+            result.placements
+        ) == 3
+
+        assert [
+            placement.start_at
+            for placement
+            in result.placements
+        ] == [
+            dt(8, 18, 0),
+            dt(8, 18, 30),
+            dt(8, 19, 0),
+        ]

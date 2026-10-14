@@ -165,6 +165,7 @@ class AvailableTime:
 class BusyEvent:
     start_at: datetime
     end_at: datetime
+    note: str | None = None
 
     def __post_init__(self) -> None:
         ensure_aware(self.start_at)
@@ -180,6 +181,7 @@ class BusyEvent:
 class ExtraAvailableTime:
     start_at: datetime
     end_at: datetime
+    note: str | None = None
 
     def __post_init__(self) -> None:
         ensure_aware(self.start_at)

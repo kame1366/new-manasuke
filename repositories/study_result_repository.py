@@ -1623,3 +1623,63 @@ class StudyResultRepository:
                 ":",
             ),
         )
+
+    def sum_theme_actual_minutes_by_target(
+        self,
+        *,
+        participant_id: str,
+    ) -> dict[int, int]:
+        """
+        Theme StudyTargetごとの
+        actual_minutes累計を返す。
+
+        StudyResult correctionでは
+        study_results本体が現在値へ更新されるため、
+        revision historyは合計しない。
+        """
+
+        connection = connect(
+            self._db_path
+        )
+
+        try:
+            rows = connection.execute(
+                """
+                SELECT
+                    sr.study_target_id,
+                    COALESCE(
+                        SUM(sr.actual_minutes),
+                        0
+                    ) AS total_minutes
+                FROM study_results AS sr
+                JOIN study_targets AS st
+                ON st.id = sr.study_target_id
+                AND st.participant_id =
+                    sr.participant_id
+                WHERE sr.participant_id = ?
+                AND st.kind = 'THEME'
+                AND sr.actual_minutes IS NOT NULL
+                GROUP BY sr.study_target_id
+                """,
+                (
+                    participant_id,
+                ),
+            ).fetchall()
+
+            return {
+                int(
+                    row[
+                        "study_target_id"
+                    ]
+                ):
+                int(
+                    row[
+                        "total_minutes"
+                    ]
+                )
+
+                for row in rows
+            }
+
+        finally:
+            connection.close()

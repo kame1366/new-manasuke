@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
@@ -84,6 +85,7 @@ class GreedyScheduler:
         free_slots: Sequence[
             FreeSlot
         ],
+        prefer_distributed_practice: bool = True,
     ) -> ScheduleResult:
         self._validate_chunks(
             chunks
@@ -107,10 +109,7 @@ class GreedyScheduler:
             ScheduledChunk
         ] = []
 
-        used_days_by_target: dict[
-            int,
-            set[date],
-        ] = {}
+        used_days: dict[int, set[date]] = defaultdict(set)
 
         last_material_end_by_target = {}
 
@@ -133,14 +132,6 @@ class GreedyScheduler:
                 key=self._priority_key,
             )
 
-            used_days = (
-                used_days_by_target
-                .setdefault(
-                    selected.study_target_id,
-                    set(),
-                )
-            )
-
             additional_not_before = None
 
             if (
@@ -160,20 +151,22 @@ class GreedyScheduler:
                     free_slots=(
                         remaining_slots
                     ),
-                    used_study_days=(
-                        used_days
+                    used_study_days=frozenset(
+                        used_days[selected.study_target_id]
                     ),
                     additional_not_before=(
                         additional_not_before
                     ),
-                    prefer_new_study_day=True,
+                    prefer_new_study_day=prefer_distributed_practice,
                 )
             )
 
             if outcome.placement is None:
                 ordered_unplaced = tuple(
                     sorted(
-                        remaining_chunks,
+                        [
+                            *remaining_chunks,
+                        ],
                         key=self._priority_key,
                     )
                 )
@@ -207,7 +200,7 @@ class GreedyScheduler:
                 placement.start_at
             ).date()
 
-            used_days.add(
+            used_days[selected.study_target_id].add(
                 study_day
             )
 
@@ -326,14 +319,14 @@ class GreedyScheduler:
             if (
                 chunk.kind
                 == StudyTargetKind.MATERIAL
-            ):
-                if (
+                and (
                     chunk.sequence_no
                     != lowest_material_sequence[
                         chunk.study_target_id
                     ]
-                ):
-                    continue
+                )
+            ):
+                continue
 
             ready.append(
                 chunk

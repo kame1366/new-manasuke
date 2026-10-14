@@ -146,6 +146,7 @@ def test_busy_event_can_be_saved(
             0,
             tzinfo=JST,
         ),
+        note="通院",
         end_at=datetime(
             2026,
             10,
@@ -174,6 +175,7 @@ def test_busy_event_can_be_saved(
         loaded[0].end_at
         == to_utc(original.end_at)
     )
+    assert loaded[0].note == original.note
 
 
 def test_extra_available_time_can_be_saved(
@@ -199,6 +201,7 @@ def test_extra_available_time_can_be_saved(
             0,
             tzinfo=JST,
         ),
+        note="臨時枠",
         end_at=datetime(
             2026,
             10,
@@ -225,6 +228,7 @@ def test_extra_available_time_can_be_saved(
         loaded[0].start_at
         == to_utc(original.start_at)
     )
+    assert loaded[0].note == original.note
 
 
 def test_availability_changes_increment_version(
