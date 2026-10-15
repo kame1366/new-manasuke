@@ -39,7 +39,7 @@ def test_initial_migration_creates_all_tables(
         db_path
     )
 
-    assert applied == [1]
+    assert applied == [1, 2, 3]
 
     connection = connect(
         db_path
@@ -78,7 +78,7 @@ def test_migrations_are_idempotent(
         db_path
     )
 
-    assert first == [1]
+    assert first == [1, 2, 3]
     assert second == []
 
     connection = connect(
@@ -93,7 +93,7 @@ def test_migrations_are_idempotent(
             """
         ).fetchone()[0]
 
-        assert count == 1
+        assert count == 3
 
     finally:
         connection.close()

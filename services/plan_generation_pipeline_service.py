@@ -127,6 +127,12 @@ from services.study_result_service import (
     StudyResultService,
 )
 
+from domain.enums import AttemptStatus
+
+from repositories.participant_repository import (
+    ParticipantRepository,
+)
+
 
 ERROR_MINIMUM_POLICY_INFEASIBLE = (
     "MINIMUM_POLICY_INFEASIBLE"
@@ -776,6 +782,28 @@ class PlanGenerationPipelineService:
                 "continue_after_goal_decision "
                 "requires "
                 "AWAITING_GOAL_DECISION"
+            )
+
+        if attempt.status != AttemptStatus.IN_PROGRESS:
+            raise AttemptNotActiveError(
+                "この計画生成Attemptは既に終了しています。"
+            )
+
+        current_version = ParticipantRepository(
+            self._db_path
+        ).get_planning_data_version(participant_id)
+
+        if current_version != attempt.source_planning_data_version:
+            self._safe_fail_attempt(
+                participant_id=participant_id,
+                attempt_id=attempt_id,
+                error_type="PLANNING_DATA_CHANGED",
+                now=now,
+            )
+
+            raise PlanningDataChangedError(
+                "計画生成の開始後に学習設定が変更されました。"
+                "新しい設定で計画を作り直してください。"
             )
 
         # REPLAN_NOWのeffective_fromを
@@ -1521,28 +1549,39 @@ class PlanGenerationPipelineService:
         participant_id: str,
     ) -> _SourceData:
 
+
+        # アーカイブされていない学習対象のみ取得
         study_targets = tuple(
-            self
-            ._study_target_repository
-            .list_by_participant(
+            self._study_target_repository
+            .list_active_by_participant(
                 participant_id
             )
         )
 
+        active_target_ids = {
+            target.id
+            for target in study_targets
+        }
+
+        # Goalも有効なものだけ取得
         goals = tuple(
-            self
-            ._goal_repository
-            .list_by_participant(
+            self._goal_repository
+            .list_active_by_participant(
                 participant_id
             )
         )
 
+        # LearningPolicyにarchived_atはない。
+        # 有効なStudyTargetに対応するものだけ使用する。
         learning_policies = tuple(
-            self
-            ._learning_policy_repository
-            .list_by_participant(
-                participant_id
+            policy
+            for policy in (
+                self._learning_policy_repository
+                .list_by_participant(
+                    participant_id
+                )
             )
+            if policy.study_target_id in active_target_ids
         )
 
         weekly_available_times = tuple(
@@ -1569,15 +1608,18 @@ class PlanGenerationPipelineService:
             )
         )
 
-        theme_completed = (
-            self
-            ._study_result_repository
+        all_theme_completed = (
+            self._study_result_repository
             .sum_theme_actual_minutes_by_target(
-                participant_id=(
-                    participant_id
-                )
+                participant_id=participant_id
             )
         )
+
+        theme_completed = {
+            target_id: minutes
+            for target_id, minutes in all_theme_completed.items()
+            if target_id in active_target_ids
+        }
 
         target_ids = {
             target.id
@@ -1590,6 +1632,18 @@ class PlanGenerationPipelineService:
             for policy
             in learning_policies
         }
+
+        invalid_goal_ids = [
+            goal.id
+            for goal in goals
+            if goal.study_target_id not in active_target_ids
+        ]
+
+        if invalid_goal_ids:
+            raise SourceDataIncompleteError(
+                "Active Goals reference inactive StudyTargets: "
+                f"{invalid_goal_ids}"
+            )
 
         if target_ids != policy_ids:
             missing = sorted(
@@ -1764,12 +1818,25 @@ class PlanGenerationPipelineService:
             )
         )
 
+        # 今後の計画に含めるStudyTargetのID
+        active_target_ids = {
+            target.id
+            for target in source.study_targets
+        }
+
+        # アーカイブ済みStudyTargetの予定は引き継がない
+        active_plan_items = [
+            item
+            for item in plan_items
+            if item.study_target_id in active_target_ids
+        ]
+
         return (
             self
             ._replan_rules
             .collect_carry_forward(
                 plan_items=(
-                    plan_items
+                    active_plan_items
                 ),
                 study_targets=list(
                     source.study_targets
@@ -3725,21 +3792,31 @@ class PlanGenerationPipelineService:
         participant_id: str,
     ) -> None:
 
+
         study_targets = (
-            self
-            ._study_target_repository
-            .list_by_participant(
+            self._study_target_repository
+            .list_active_by_participant(
                 participant_id
             )
         )
 
-        policies = (
-            self
-            ._learning_policy_repository
-            .list_by_participant(
-                participant_id
+        target_ids = {
+            target.id
+            for target in study_targets
+        }
+
+        # アーカイブ済み教材のPolicyは照合対象外
+        policies = [
+            policy
+            for policy in (
+                self._learning_policy_repository
+                .list_by_participant(
+                    participant_id
+                )
             )
-        )
+            if policy.study_target_id in target_ids
+        ]
+
 
         target_ids = {
             target.id

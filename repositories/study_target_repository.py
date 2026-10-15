@@ -11,7 +11,7 @@ from domain.models import (
     StudyTarget,
     StudyTargetRange,
 )
-from domain.time_rules import UTC, to_db_utc
+from domain.time_rules import UTC, from_db_utc, to_db_utc
 from repositories.participant_repository import (
     ParticipantRepository,
 )
@@ -153,7 +153,8 @@ class StudyTargetRepository:
                     unit_type,
                     next_position,
                     estimated_minutes_per_unit,
-                    note
+                    note,
+                    archived_at
                 FROM study_targets
                 WHERE participant_id = ?
                   AND id = ?
@@ -180,9 +181,12 @@ class StudyTargetRepository:
         finally:
             connection.close()
 
+
     def list_by_participant(
         self,
         participant_id: str,
+        *,
+        include_archived: bool = True,
     ) -> list[StudyTarget]:
         connection = connect(self._db_path)
 
@@ -197,12 +201,20 @@ class StudyTargetRepository:
                     unit_type,
                     next_position,
                     estimated_minutes_per_unit,
-                    note
+                    note,
+                    archived_at
                 FROM study_targets
                 WHERE participant_id = ?
+                  AND (
+                      ? = 1
+                      OR archived_at IS NULL
+                  )
                 ORDER BY id
                 """,
-                (participant_id,),
+                (
+                    participant_id,
+                    int(include_archived),
+                ),
             ).fetchall()
 
             results: list[StudyTarget] = []
@@ -226,6 +238,17 @@ class StudyTargetRepository:
 
         finally:
             connection.close()
+
+
+    def list_active_by_participant(
+        self,
+        participant_id: str,
+    ) -> list[StudyTarget]:
+        return self.list_by_participant(
+            participant_id,
+            include_archived=False,
+        )
+
 
     @staticmethod
     def _load_ranges(
@@ -288,4 +311,9 @@ class StudyTargetRepository:
             ),
             note=row["note"],
             ranges=ranges,
+            archived_at=(
+                from_db_utc(row["archived_at"])
+                if row["archived_at"] is not None
+                else None
+            ),
         )

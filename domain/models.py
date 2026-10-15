@@ -48,6 +48,8 @@ class StudyTarget:
 
     ranges: list[StudyTargetRange] = field(default_factory=list)
 
+    archived_at: datetime | None = None
+
     def __post_init__(self):
         if not self.title.strip():
             raise ValueError("title must not be empty")
@@ -94,6 +96,9 @@ class Goal:
     target_minutes: int | None = None
     note: str | None = None
     ranges: list[GoalRange] = field(default_factory=list)
+
+    archived_at: datetime | None = None
+    deadline_is_date_only: bool = False
 
 
 @dataclass

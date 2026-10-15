@@ -38,9 +38,51 @@ from ui.session import require_participant
 import traceback
 import logging
 
+from domain.enums import (
+    AttemptStage,
+    GoalMode,
+)
+
+from services.plan_version_status_service import (
+    PlanVersionStatusService,
+)
+
 logger = logging.getLogger(
     __name__
 )
+
+
+def request_plan_generation(operation_type):
+    try:
+        with st.spinner(
+            "学習計画を作っています..."
+        ):
+            result = generation_service.generate(
+                participant_id=participant_id,
+                operation_type=operation_type,
+                now=now_jst(),
+            )
+
+        if result.succeeded:
+            st.rerun()
+
+        elif result.awaiting_goal_decision:
+            # 判断待ち画面を表示するため再実行
+            st.rerun()
+
+        else:
+            st.error(
+                "計画を完成できませんでした。"
+                f" 処理段階: {result.stage.value}"
+            )
+
+    except Exception as exc:
+        logger.exception(
+            "Plan generation failed"
+        )
+        st.error(
+            user_message_for_exception(exc)
+        )
 
 
 st.set_page_config(
@@ -192,6 +234,124 @@ st.caption(
     "7日間の学習計画を確認・更新できます。"
 )
 
+# =========================================
+# 進行中Attemptの復元
+# =========================================
+
+active_attempt = generation_service.get_active_attempt(
+    participant_id=participant_id,
+)
+
+if active_attempt is not None:
+
+    if (
+        active_attempt.stage
+        == AttemptStage.AWAITING_GOAL_DECISION
+    ):
+        st.warning(
+            "すべての目標を期限内に達成することが"
+            "難しいため、目標ごとに保証レベルを"
+            "選択してください。"
+        )
+
+        st.info(
+            f"計画生成 Attempt ID: {active_attempt.id}"
+        )
+
+        goals = generation_service.list_goals_for_decision(
+            participant_id=participant_id,
+        )
+
+        if not goals:
+            st.error(
+                "選択対象のGoalが見つかりません。"
+                "設定と生成状態を確認してください。"
+            )
+
+        else:
+            with st.form(
+                key=f"goal_decision_{active_attempt.id}"
+            ):
+                goal_modes = {}
+
+                for goal in goals:
+                    selected = st.radio(
+                        f"{goal.title} (ID: {goal.id})",
+                        options=[
+                            "STRICT",
+                            "BEST_EFFORT",
+                        ],
+                        horizontal=True,
+                        key=(
+                            f"goal_mode_"
+                            f"{active_attempt.id}_"
+                            f"{goal.id}"
+                        ),
+                        help=(
+                            "STRICT: 期限内達成を必須条件とする。"
+                            "BEST_EFFORT: 期限内達成を目指すが"
+                            "保証しない。"
+                        ),
+                    )
+
+                    goal_modes[goal.id] = GoalMode(
+                        selected
+                    )
+
+                submitted = st.form_submit_button(
+                    "この条件で計画生成を続行",
+                    type="primary",
+                )
+
+            if submitted:
+                try:
+                    with st.spinner(
+                        "選択内容を検証し、"
+                        "計画生成を再開しています..."
+                    ):
+                        result = (
+                            generation_service
+                            .continue_after_goal_decision(
+                                participant_id=participant_id,
+                                attempt_id=active_attempt.id,
+                                goal_modes=goal_modes,
+                                now=now_jst(),
+                            )
+                        )
+
+                    if result.succeeded:
+                        st.success(
+                            "学習計画を作成しました。"
+                        )
+                        st.rerun()
+
+                    else:
+                        st.error(
+                            "計画を完成できませんでした。"
+                        )
+
+                except Exception as exc:
+                    logger.exception(
+                        "Plan generation resume failed"
+                    )
+                    st.error(
+                        user_message_for_exception(exc)
+                    )
+
+                    # ローカル開発中だけ表示
+                    with st.expander(
+                        "開発用エラー詳細"
+                    ):
+                        st.code(
+                            traceback.format_exc(),
+                            language="text",
+                        )
+
+    else:
+        st.info(
+            "現在、計画生成処理が進行中です。"
+            f" 処理段階: {active_attempt.stage.value}"
+        )
 
 st.subheader(
     "計画を更新"
@@ -201,10 +361,13 @@ col1, col2 = st.columns(2)
 
 with col1:
     if st.button(
-        "今から再計画",
+        "今すぐ再計画",
         type="primary",
-        use_container_width=True,
+        disabled=(active_attempt is not None),
     ):
+        request_plan_generation(
+            PlanOperationType.INITIAL
+        )
         try:
             with st.spinner(
                 "学習計画を作っています..."
@@ -237,8 +400,12 @@ with col1:
 with col2:
     if st.button(
         "明日から再計画",
-        use_container_width=True,
+        type="primary",
+        disabled=(active_attempt is not None),
     ):
+        request_plan_generation(
+            PlanOperationType.REPLAN_TOMORROW
+        )
         try:
             with st.spinner(
                 "明日からの学習計画を"
@@ -272,35 +439,78 @@ with col2:
 st.divider()
 
 
-plan = resolve_current_plan()
+try:
+    version_status = PlanVersionStatusService(
+        db_path
+    ).get_status(
+        participant_id=participant_id,
+        now=now_jst(),
+    )
+
+except Exception:
+    logger.exception(
+        "Failed to resolve plan version status"
+    )
+    st.error(
+        "学習計画の状態を確認できませんでした。"
+    )
+    st.stop()
+
+plan = version_status.active_plan
 
 if plan is None:
-    st.info(
-        "現在利用できる学習計画はありません。"
-    )
+    if version_status.next_plan is not None:
+        st.info(
+            "これから適用される学習計画があります。"
+        )
+
+        if version_status.next_has_changes:
+            st.warning(
+                "適用予定の計画は古い設定で"
+                "作成されています。"
+                "再計画をおすすめします。"
+            )
+    else:
+        st.info(
+            "現在利用できる学習計画はありません。"
+        )
 
     if st.button(
         "最初の学習計画を作る",
         type="primary",
+        disabled=(version_status.next_plan is not None),
     ):
+        request_plan_generation(
+            PlanOperationType.INITIAL
+        )
         try:
             with st.spinner(
                 "学習計画を作っています..."
             ):
-                generation_service.generate(
-                    participant_id=(
-                        participant_id
-                    ),
-                    operation_type=(
-                        PlanOperationType
-                        .INITIAL
-                    ),
+                result = generation_service.generate(
+                    participant_id=participant_id,
+                    operation_type=PlanOperationType.INITIAL,
                     now=now_jst(),
                 )
 
-            st.success(
-                "学習計画を作成しました。"
-            )
+                if result.succeeded:
+                    st.success("学習計画を作成しました。")
+                    st.rerun()
+
+                elif result.awaiting_goal_decision:
+                    st.warning(
+                        "目標をすべて期限内に達成できないため、"
+                        "STRICT / BEST_EFFORTの選択が必要です。"
+                    )
+                    st.info(
+                        f"計画生成Attempt ID: {result.attempt_id}"
+                    )
+
+                else:
+                    st.error(
+                        "計画を完成できませんでした。"
+                        f"現在の処理段階: {result.stage.value}"
+                    )
 
             st.rerun()
 
@@ -341,13 +551,24 @@ if plan is None:
     st.stop()
 
 
-state = derive_simple_plan_state(
-    plan
-)
+if (
+    plan.source_planning_data_version
+    != version_status.current_version
+):
+    st.warning(
+        "学習設定が変更されています。\n\n"
+        "この計画は以前の設定をもとに"
+        "作成されています。"
+        "現在の条件で有効かどうかは"
+        "まだ検証されていません。"
+        "再計画をおすすめします。"
+    )
 
-show_plan_state(
-    state
-)
+else:
+    st.caption(
+        "計画作成時の設定バージョンと"
+        "現在の設定バージョンは一致しています。"
+    )
 
 
 st.write(

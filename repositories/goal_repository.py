@@ -67,6 +67,7 @@ class GoalRepository:
             FROM study_targets
             WHERE participant_id = ?
               AND id = ?
+              AND archived_at IS NULL
             """,
             (
                 participant_id,
@@ -96,9 +97,10 @@ class GoalRepository:
                 target_minutes,
                 note,
                 created_at,
-                updated_at
+                updated_at,
+                deadline_is_date_only
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 participant_id,
@@ -111,6 +113,7 @@ class GoalRepository:
                 goal.note,
                 now_text,
                 now_text,
+                int(goal.deadline_is_date_only),
             ),
         )
 
@@ -161,7 +164,9 @@ class GoalRepository:
                     deadline_at,
                     importance,
                     target_minutes,
-                    note
+                    note,
+                    archived_at,
+                    deadline_is_date_only
                 FROM goals
                 WHERE participant_id = ?
                   AND id = ?
@@ -188,40 +193,58 @@ class GoalRepository:
         finally:
             connection.close()
 
+
     def list_by_participant(
         self,
         participant_id: str,
+        *,
+        include_archived: bool = True,
     ) -> list[Goal]:
-        connection = connect(
-            self._db_path
-        )
+        connection = connect(self._db_path)
 
         try:
             rows = connection.execute(
                 """
                 SELECT
-                    id,
-                    participant_id,
-                    study_target_id,
-                    goal_type,
-                    title,
-                    deadline_at,
-                    importance,
-                    target_minutes,
-                    note
-                FROM goals
-                WHERE participant_id = ?
-                ORDER BY deadline_at, id
+                    g.id,
+                    g.participant_id,
+                    g.study_target_id,
+                    g.goal_type,
+                    g.title,
+                    g.deadline_at,
+                    g.importance,
+                    g.target_minutes,
+                    g.note,
+                    g.archived_at,
+                    g.deadline_is_date_only
+                FROM goals AS g
+                WHERE g.participant_id = ?
+                  AND (
+                      ? = 1
+                      OR (
+                          g.archived_at IS NULL
+                          AND EXISTS (
+                              SELECT 1
+                              FROM study_targets AS s
+                              WHERE s.id = g.study_target_id
+                                AND s.participant_id =
+                                    g.participant_id
+                                AND s.archived_at IS NULL
+                          )
+                      )
+                  )
+                ORDER BY g.deadline_at, g.id
                 """,
-                (participant_id,),
+                (
+                    participant_id,
+                    int(include_archived),
+                ),
             ).fetchall()
 
             results: list[Goal] = []
 
             for row in rows:
-                goal_id = int(
-                    row["id"]
-                )
+                goal_id = int(row["id"])
 
                 ranges = self._load_ranges(
                     connection,
@@ -239,6 +262,16 @@ class GoalRepository:
 
         finally:
             connection.close()
+
+    def list_active_by_participant(
+        self,
+        participant_id: str,
+    ) -> list[Goal]:
+        return self.list_by_participant(
+            participant_id,
+            include_archived=False,
+        )
+
 
     @staticmethod
     def _load_ranges(
@@ -302,4 +335,12 @@ class GoalRepository:
             ),
             note=row["note"],
             ranges=ranges,
+            archived_at=(
+                from_db_utc(row["archived_at"])
+                if row["archived_at"] is not None
+                else None
+            ),
+            deadline_is_date_only=bool(
+                row["deadline_is_date_only"]
+            ),
         )

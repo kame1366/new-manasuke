@@ -17,6 +17,29 @@ from repositories.participant_repository import (
     ParticipantRepository,
 )
 
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Literal
+
+
+class AvailabilityConflictError(RuntimeError):
+    """編集中に学習設定が変更された。"""
+    pass
+
+
+EventKind = Literal["busy", "extra"]
+
+
+@dataclass(frozen=True, slots=True)
+class DatedAvailabilityRecord:
+    id: int
+    start_at: datetime
+    end_at: datetime
+    note: str | None
+
+
+class AvailabilityRecordNotFoundError(RuntimeError):
+    pass
 
 class AvailabilityRepository:
     def __init__(
@@ -329,3 +352,218 @@ class AvailabilityRepository:
 
         finally:
             connection.close()
+
+    def replace_available_times_if_version(
+        self,
+        *,
+        participant_id: str,
+        available_times: list[AvailableTime],
+        expected_version: int,
+    ) -> None:
+        with transaction(self._db_path) as connection:
+
+            # Versionを原子的に確認・更新する。
+            cursor = connection.execute(
+                """
+                UPDATE participants
+                SET planning_data_version =
+                    planning_data_version + 1
+                WHERE id = ?
+                AND planning_data_version = ?
+                """,
+                (participant_id, expected_version),
+            )
+
+            if cursor.rowcount != 1:
+                raise AvailabilityConflictError(
+                    "設定が別の操作によって変更されました。"
+                    "最新の設定を読み込み直してください。"
+                )
+
+            connection.execute(
+                """
+                DELETE FROM available_times
+                WHERE participant_id = ?
+                """,
+                (participant_id,),
+            )
+
+            self.insert_available_times(
+                connection,
+                participant_id,
+                available_times,
+            )
+
+    
+    # =====================================================
+    # Editable BusyEvent / ExtraAvailableTime
+    # =====================================================
+
+    @staticmethod
+    def _event_table(kind: EventKind) -> str:
+        tables = {
+            "busy": "busy_events",
+            "extra": "extra_available_times",
+        }
+
+        if kind not in tables:
+            raise ValueError("Unknown availability kind")
+
+        return tables[kind]
+
+    @staticmethod
+    def _bump_version_if_current(
+        connection: sqlite3.Connection,
+        participant_id: str,
+        expected_version: int,
+    ) -> None:
+        cursor = connection.execute(
+            """
+            UPDATE participants
+            SET planning_data_version =
+                planning_data_version + 1
+            WHERE id = ?
+              AND planning_data_version = ?
+            """,
+            (participant_id, expected_version),
+        )
+
+        if cursor.rowcount != 1:
+            raise AvailabilityConflictError(
+                "学習設定が別の操作で変更されました。"
+                "最新の設定を読み込んでください。"
+            )
+
+    def list_dated_events(
+        self,
+        *,
+        participant_id: str,
+        kind: EventKind,
+    ) -> list[DatedAvailabilityRecord]:
+        table = self._event_table(kind)
+        connection = connect(self._db_path)
+
+        try:
+            rows = connection.execute(
+                f"""
+                SELECT id, start_at, end_at, note
+                FROM {table}
+                WHERE participant_id = ?
+                ORDER BY start_at, id
+                """,
+                (participant_id,),
+            ).fetchall()
+
+            return [
+                DatedAvailabilityRecord(
+                    id=int(row["id"]),
+                    start_at=from_db_utc(row["start_at"]),
+                    end_at=from_db_utc(row["end_at"]),
+                    note=row["note"],
+                )
+                for row in rows
+            ]
+        finally:
+            connection.close()
+
+    def save_dated_event(
+        self,
+        *,
+        participant_id: str,
+        kind: EventKind,
+        event_id: int | None,
+        start_at: datetime,
+        end_at: datetime,
+        note: str | None,
+        expected_version: int,
+    ) -> int:
+        table = self._event_table(kind)
+
+        with transaction(self._db_path) as connection:
+            self._bump_version_if_current(
+                connection,
+                participant_id,
+                expected_version,
+            )
+
+            if event_id is None:
+                cursor = connection.execute(
+                    f"""
+                    INSERT INTO {table} (
+                        participant_id,
+                        start_at,
+                        end_at,
+                        note
+                    )
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (
+                        participant_id,
+                        to_db_utc(start_at),
+                        to_db_utc(end_at),
+                        note,
+                    ),
+                )
+
+                if cursor.lastrowid is None:
+                    raise RuntimeError(
+                        "Failed to insert availability event"
+                    )
+
+                return int(cursor.lastrowid)
+
+            cursor = connection.execute(
+                f"""
+                UPDATE {table}
+                SET start_at = ?,
+                    end_at = ?,
+                    note = ?
+                WHERE id = ?
+                  AND participant_id = ?
+                """,
+                (
+                    to_db_utc(start_at),
+                    to_db_utc(end_at),
+                    note,
+                    event_id,
+                    participant_id,
+                ),
+            )
+
+            if cursor.rowcount != 1:
+                raise AvailabilityRecordNotFoundError(
+                    "編集対象の予定が見つかりません。"
+                )
+
+            return event_id
+
+    def delete_dated_event(
+        self,
+        *,
+        participant_id: str,
+        kind: EventKind,
+        event_id: int,
+        expected_version: int,
+    ) -> None:
+        table = self._event_table(kind)
+
+        with transaction(self._db_path) as connection:
+            self._bump_version_if_current(
+                connection,
+                participant_id,
+                expected_version,
+            )
+
+            cursor = connection.execute(
+                f"""
+                DELETE FROM {table}
+                WHERE id = ?
+                  AND participant_id = ?
+                """,
+                (event_id, participant_id),
+            )
+
+            if cursor.rowcount != 1:
+                raise AvailabilityRecordNotFoundError(
+                    "削除対象の予定が見つかりません。"
+                )
