@@ -99,16 +99,16 @@ else:
         )
 
     if submitted:
-        if authenticate(
-            access_key=access_key,
-            participant_id=(
-                participant_id
-            ),
-        ):
-            st.rerun()
-
-        else:
-            st.error(
-                "アクセスキーまたは参加者IDを"
-                "確認してください。"
+        try:
+            success = authenticate(
+                access_key=access_key,
+                participant_id=participant_id,
             )
+        except RuntimeError:
+            # Do not expose credential configuration to participants.
+            st.error("ログイン設定を確認できません。運営者に連絡してください。")
+        else:
+            if success:
+                st.rerun()
+            else:
+                st.error("アクセスキーまたは参加者IDを確認してください。")

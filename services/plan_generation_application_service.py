@@ -203,7 +203,7 @@ class PlanGenerationApplicationService:
         repository = GoalRepository(
             self._db_path
         )
-        return repository.list_by_participant(
+        return repository.list_active_by_participant(
             participant_id
         )
 

@@ -234,3 +234,35 @@ def test_empty_context_does_not_call_api():
         client.responses.last_kwargs
         is None
     )
+
+def test_payload_includes_goal_workload_and_progress_context():
+    from datetime import datetime
+    from domain.enums import GoalType, UnitType
+    from domain.models import Goal, GoalRange, StudyTargetRange
+    from domain.time_rules import JST
+
+    material = StudyTarget(
+        id=1, participant_id="participant-a",
+        kind=StudyTargetKind.MATERIAL, title="数学の問題集",
+        unit_type=UnitType.PROBLEM, next_position=21,
+        estimated_minutes_per_unit=4.0,
+        ranges=[StudyTargetRange(sequence_no=0, start_position=1, end_position=100)],
+    )
+    goal = Goal(
+        id=10, participant_id="participant-a", study_target_id=1,
+        goal_type=GoalType.TEST, title="問題50まで",
+        deadline_at=datetime(2026, 10, 31, 18, tzinfo=JST),
+        importance=Importance.HIGH,
+        ranges=[GoalRange(start_position=21, end_position=50)],
+    )
+    payload = PlanningGenerator._build_payload(
+        context=context(), study_targets=[material], goals=[goal],
+        learning_policies=[policy()], correction_feedback=None,
+    )
+    bound = payload["optional_bounds"][0]
+    assert bound["next_position"] == 21
+    assert bound["estimated_minutes_per_unit"] == 4.0
+    assert bound["study_target_ranges"] == [{"start": 1, "end": 100}]
+    assert bound["unit_type"] == "PROBLEM"
+    assert payload["goals"][0]["goal_ranges"] == [{"start": 21, "end": 50}]
+    assert "target_minutes" in payload["goals"][0]

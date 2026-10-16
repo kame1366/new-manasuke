@@ -9,7 +9,7 @@ from repositories.participant_repository import (
 )
 from ui.runtime import (
     get_db_path,
-    get_experiment_access_key,
+    get_participant_invite_keys,
 )
 
 
@@ -52,21 +52,14 @@ def authenticate(
     access_key: str,
     participant_id: str,
 ) -> bool:
-    expected_access_key = (
-        get_experiment_access_key()
-    )
-
-    normalized_participant_id = (
-        participant_id.strip()
-    )
-
+    normalized_participant_id = participant_id.strip()
     if not normalized_participant_id:
         return False
 
-    if not hmac.compare_digest(
-        access_key,
-        expected_access_key,
-    ):
+    # Authorization is bound to the selected participant ID.
+    # Never fall back to a shared project-wide key.
+    expected = get_participant_invite_keys().get(normalized_participant_id)
+    if expected is None or not hmac.compare_digest(access_key, expected):
         return False
 
     repository = (

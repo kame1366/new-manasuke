@@ -26,7 +26,7 @@ from planning.optional_allocation import (
 
 
 PLANNING_PROMPT_VERSION = (
-    "planning-generator-v1"
+    "planning-generator-v2-context"
 )
 
 
@@ -79,6 +79,12 @@ Rules:
     progress, deadlines, available time, or study results.
 
 13. reason must be short and explain the soft allocation choice.
+
+14. Use remaining workload and progress only to judge optional time allocation.
+    Do not treat Goal ranges or minutes as authority to bypass Python bounds.
+
+15. Favor sustainable allocations toward a learner's purpose and goals;
+    do not fill unused capacity without a good reason.
 """.strip()
 
 
@@ -292,6 +298,16 @@ class PlanningGenerator:
                     "kind": (
                         target.kind.value
                     ),
+                    "unit_type": (
+                        target.unit_type.value
+                        if target.unit_type is not None else None
+                    ),
+                    "next_position": target.next_position,
+                    "estimated_minutes_per_unit": target.estimated_minutes_per_unit,
+                    "study_target_ranges": [
+                        {"start": r.start_position, "end": r.end_position}
+                        for r in sorted(target.ranges, key=lambda r: r.sequence_no)
+                    ],
                     "purpose": (
                         policy.purpose
                     ),
@@ -350,6 +366,11 @@ class PlanningGenerator:
                 "importance": (
                     goal.importance.value
                 ),
+                "target_minutes": goal.target_minutes,
+                "goal_ranges": [
+                    {"start": r.start_position, "end": r.end_position}
+                    for r in goal.ranges
+                ],
             }
             for goal in goals
             if (
