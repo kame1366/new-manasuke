@@ -11,6 +11,20 @@
 5. `uv run python -m scripts.import_participant examples/participant.sample.json data/manasuke.db` のCLI仕様を確認し、参加者IDをDBに登録します。ログインは**DBに存在するIDのみ**可能です。
 6. `uv run streamlit run app.py` で起動します。
 
+### 開発用ダミーデータの投入
+
+ローカル確認用に、学習対象・Goal・空き時間を含むダミー参加者を3件投入できます。
+
+```bash
+uv run python -m scripts.seed_dummy_data data/manasuke.db
+```
+
+件数と参加者IDの接頭辞は変更できます。既に同じIDが存在する場合は重複エラーになります。
+
+```bash
+uv run python -m scripts.seed_dummy_data data/manasuke.db --count 10 --prefix demo-user
+```
+
 ### 招待キーの生成
 
 各参加者についてローカルのターミナルで以下を実行し、異なるキーを発行してください。

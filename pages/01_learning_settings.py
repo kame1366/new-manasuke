@@ -658,7 +658,7 @@ with tab_targets:
                         estimated_minutes_per_unit
                     ),
                     note=note.strip() or None,
-                    ranges=ranges,
+                    ranges=validated_ranges,
                 )
 
                 policy = LearningPolicy(

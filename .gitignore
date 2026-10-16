@@ -17,6 +17,7 @@ __pycache__/
 data/*.db
 data/*.db-wal
 data/*.db-shm
+data/*.log
 
 # pytest
 .pytest_cache/
