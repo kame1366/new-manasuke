@@ -173,16 +173,14 @@ st.title(
 
 st.caption(
     "学習対象・目標・学習方針・"
-    "利用可能時間を確認できます。"
+    "利用可能時間を確認/編集できます。"
 )
-
+st.caption("登録した内容を確認できます。追加・編集が必要なときだけフォームを開いてください。")
 
 
 # =====================================================
 # Plan Version Notice
 # =====================================================
-
-st.divider()
 
 try:
     plan_status = PlanVersionStatusService(
@@ -242,6 +240,12 @@ else:
         "pages/02_plan.py",
         label="学習計画を確認する",
         icon="📅",
+    )
+
+    st.page_link(
+        "app.py",
+        label="ホームへ戻る",
+        icon="🏠",
     )
 
 st.divider()
@@ -339,7 +343,6 @@ policies_by_target = {
 }
 
 
-st.caption("登録した内容を確認できます。追加・編集が必要なときだけフォームを開いてください。")
 tab_targets, tab_goals, tab_time, tab_archive = st.tabs(
     ["📚 学習対象", "🎯 目標", "🕒 学習時間", "🗃️ アーカイブ"]
 )
@@ -2619,12 +2622,3 @@ with tab_time:
         key=f"{event_prefix}_reload",
     ):
         refresh_dated_editor()
-
-
-    st.divider()
-
-st.page_link(
-    "app.py",
-    label="ホームへ戻る",
-    icon="🏠",
-)

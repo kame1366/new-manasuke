@@ -124,6 +124,18 @@ st.caption(
     "7日間の学習計画を確認・更新できます。"
 )
 
+st.page_link(
+    "pages/03_today_and_results.py",
+    label="今日の学習・実績へ",
+    icon="✅",
+)
+
+st.page_link(
+    "app.py",
+    label="ホームへ戻る",
+    icon="🏠",
+)
+
 # =========================================
 # 進行中Attemptの復元
 # =========================================
@@ -281,10 +293,6 @@ with col2:
         request_plan_generation(PlanOperationType.REPLAN_TOMORROW)
 
 
-st.divider()
-
-
-
 plan = version_status.active_plan
 
 if plan is None:
@@ -329,21 +337,6 @@ if (
         "まだ検証されていません。"
         "再計画をおすすめします。"
     )
-
-else:
-    st.caption(
-        "計画作成時の設定バージョンと"
-        "現在の設定バージョンは一致しています。"
-    )
-
-
-st.caption(
-    f"計画の版：{plan.version_no}  ｜  "
-    "対象期間："
-    f"{format_datetime(plan.effective_from)}"
-    " 〜 "
-    f"{format_datetime(plan.horizon_end)}"
-)
 
 
 try:
@@ -402,6 +395,7 @@ for item in plan_items:
 
 
 st.divider()
+
 
 st.subheader("7日間の予定")
 st.caption(
@@ -471,14 +465,19 @@ if not plan_items:
 
 st.divider()
 
-st.page_link(
-    "pages/03_today_and_results.py",
-    label="今日の学習・実績へ",
-    icon="✅",
-)
+if (
+    plan.source_planning_data_version
+    == version_status.current_version
+):
+    st.caption(
+        "計画作成時の設定バージョンと"
+        "現在の設定バージョンは一致しています。"
+    )
 
-st.page_link(
-    "app.py",
-    label="ホームへ戻る",
-    icon="🏠",
-)
+    st.caption(
+        f"計画の版：{plan.version_no}  ｜  "
+        "対象期間："
+        f"{format_datetime(plan.effective_from)}"
+        " 〜 "
+        f"{format_datetime(plan.horizon_end)}"
+    )

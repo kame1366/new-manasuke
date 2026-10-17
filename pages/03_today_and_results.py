@@ -597,6 +597,18 @@ st.title(
     "今日の学習・実績"
 )
 
+st.page_link(
+    "pages/02_plan.py",
+    label="学習計画へ",
+    icon="📅",
+)
+
+st.page_link(
+    "app.py",
+    label="ホームへ戻る",
+    icon="🏠",
+)
+
 st.caption(
     today.strftime(
         "%Y年%m月%d日"
@@ -754,18 +766,3 @@ for item in today_items:
                 target=target,
                 existing=existing,
             )
-
-
-st.divider()
-
-st.page_link(
-    "pages/02_plan.py",
-    label="学習計画へ",
-    icon="📅",
-)
-
-st.page_link(
-    "app.py",
-    label="ホームへ戻る",
-    icon="🏠",
-)
