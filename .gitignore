@@ -28,3 +28,4 @@ data/*.log
 # OS
 .DS_Store
 Thumbs.db
+data/plan_generation.log
