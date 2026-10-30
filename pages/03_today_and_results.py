@@ -645,7 +645,7 @@ st.caption(
 )
 
 with st.container(key="manasuke_nav"):
-    col1, col2 = st.columns(2, gap="medium")
+    col1, col2, col3 = st.columns(3, gap="medium")
 
     with col1:
         if st.button(
@@ -663,7 +663,14 @@ with st.container(key="manasuke_nav"):
             width="stretch"
         ):
             st.switch_page("pages/02_plan.py")
-        
+
+    with col3:
+        if st.button(
+            "ホーム",
+            icon=":material/home:",
+            width="stretch"
+        ):
+            st.switch_page("app.py")
 
 
 plan = resolve_current_plan()
