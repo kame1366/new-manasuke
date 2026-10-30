@@ -91,6 +91,47 @@ from services.plan_version_status_service import (
 )
 
 
+st.markdown("""
+<style>
+.st-key-manasuke_nav button {
+    width: 100%;
+    min-height: 90px;
+    border-radius: 16px;
+    border: 1px solid #dbeafe;
+    background: #f8fbff;
+    color: #1e3a5f;
+    font-size: 16px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+/* マウスを乗せたとき */
+.st-key-manasuke_nav button:hover {
+    background: #eff6ff;
+    border-color: #3b82f6;
+    color: #1d4ed8;
+    transform: translateY(-3px);
+    box-shadow: 0 6px 18px rgba(59, 130, 246, 0.12);
+}
+
+/* キーボード操作時 */
+.st-key-manasuke_nav button:focus-visible {
+    outline: 3px solid #93c5fd;
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .st-key-manasuke_nav button {
+        transition: none;
+    }
+    .st-key-manasuke_nav button:hover {
+        transform: none;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
+
+
 st.set_page_config(
     page_title="学習設定 | Manasuke",
     page_icon="⚙️",
@@ -236,17 +277,25 @@ else:
             "学習計画ページで再計画してください。"
         )
 
-    st.page_link(
-        "pages/02_plan.py",
-        label="学習計画を確認する",
-        icon="📅",
-    )
+    with st.container(key = "manasuke_nav"):
+        col1, col2 = st.columns(2, gap="medium")
 
-    st.page_link(
-        "app.py",
-        label="ホームへ戻る",
-        icon="🏠",
-    )
+        with col1:
+            if st.button(
+                "学習計画",
+                icon=":material/calendar_month:",
+                width="stretch"
+            ):
+                st.switch_page("pages/02_plan.py")
+
+        with col2:
+            if st.button(
+                "学習記録",
+                icon=":material/edit_note:",
+                width="stretch"
+            ):
+                st.switch_page("pages/03_today_and_results.py")
+
 
 st.divider()
 

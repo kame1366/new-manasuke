@@ -10,6 +10,47 @@ from ui.session import (
 )
 
 
+st.markdown("""
+<style>
+.st-key-manasuke_nav button {
+    width: 100%;
+    min-height: 90px;
+    border-radius: 16px;
+    border: 1px solid #dbeafe;
+    background: #f8fbff;
+    color: #1e3a5f;
+    font-size: 16px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+/* マウスを乗せたとき */
+.st-key-manasuke_nav button:hover {
+    background: #eff6ff;
+    border-color: #3b82f6;
+    color: #1d4ed8;
+    transform: translateY(-3px);
+    box-shadow: 0 6px 18px rgba(59, 130, 246, 0.12);
+}
+
+/* キーボード操作時 */
+.st-key-manasuke_nav button:focus-visible {
+    outline: 3px solid #93c5fd;
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .st-key-manasuke_nav button {
+        transition: none;
+    }
+    .st-key-manasuke_nav button:hover {
+        transform: none;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
+
+
 st.set_page_config(
     page_title="Manasuke",
     page_icon="📚",
@@ -25,56 +66,36 @@ st.caption(
 
 
 if is_authenticated():
-    participant_id = (
-        current_participant_id()
-    )
+    participant_id = current_participant_id()
+    st.success("ログインしています。")
+    st.write(f"参加者ID: `{participant_id}`")
 
-    st.success(
-        "ログインしています。"
-    )
+    with st.container(key="manasuke_nav"):
+        col1, col2, col3 = st.columns(3, gap="medium")
 
-    st.write(
-        f"参加者ID: `{participant_id}`"
-    )
+        with col1:
+            if st.button(
+                "学習設定",
+                icon=":material/menu_book:",
+                width="stretch"
+            ):
+                st.switch_page("pages/01_learning_settings.py")
 
-    st.subheader(
-        "メニュー"
-    )
+        with col2:
+            if st.button(
+                "学習計画",
+                icon=":material/calendar_month:",
+                width="stretch"
+            ):
+                st.switch_page("pages/02_plan.py")
 
-    col1, col2, col3 = (
-        st.columns(3)
-    )
-
-    with col1:
-        st.page_link(
-            "pages/01_learning_settings.py",
-            label="学習設定",
-            icon="⚙️",
-        )
-
-    with col2:
-        st.page_link(
-            "pages/02_plan.py",
-            label="学習計画",
-            icon="📅",
-        )
-
-    with col3:
-        st.page_link(
-            "pages/03_today_and_results.py",
-            label="今日の学習・実績",
-            icon="✅",
-        )
-
-    st.divider()
-
-    if st.button(
-        "ログアウト",
-        type="secondary",
-    ):
-        logout()
-        st.rerun()
-
+        with col3:
+            if st.button(
+                "学習記録",
+                icon=":material/edit_note:",
+                width="stretch"
+            ):
+                st.switch_page("pages/03_today_and_results.py")
 else:
     st.subheader(
         "実験参加"

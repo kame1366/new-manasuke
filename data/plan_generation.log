@@ -69,3 +69,76 @@ Traceback (most recent call last):
 ssl.SSLError: unknown error (_ssl.c:3134)
 2026-10-16 16:23:01,631 INFO plan_generation_started participant_id=a78cbf6fc6b94814947012de38823b6e operation_type=INITIAL
 2026-10-16 16:23:06,116 INFO plan_created participant_id=a78cbf6fc6b94814947012de38823b6e operation_type=INITIAL attempt_id=1 plan_id=1 version_no=1 effective_from=2026-10-16T16:25:00+09:00 horizon_end=2026-10-23T00:00:00+09:00
+2026-10-16 22:04:43,013 INFO plan_generation_started participant_id=test-001 operation_type=INITIAL
+2026-10-16 22:04:43,066 ERROR plan_generation_failed participant_id=test-001 operation_type=INITIAL
+Traceback (most recent call last):
+  File "/home/mataneko/developments/new-manasuke/services/plan_generation_application_service.py", line 87, in generate
+    result = self._generate_impl(
+        participant_id=(
+    ...<5 lines>...
+        now=now,
+    )
+  File "/home/mataneko/developments/new-manasuke/services/plan_generation_application_service.py", line 169, in _generate_impl
+    PlanGenerationPipelineService(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        db_path=self._db_path
+        ^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/mataneko/developments/new-manasuke/services/plan_generation_pipeline_service.py", line 487, in __init__
+    client = OpenAI(
+        api_key=(
+    ...<10 lines>...
+        ),
+    )
+  File "/home/mataneko/developments/new-manasuke/.venv/lib/python3.13/site-packages/openai/_client.py", line 335, in __init__
+    super().__init__(
+    ~~~~~~~~~~~~~~~~^
+        version=__version__,
+        ^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+        _strict_response_validation=_strict_response_validation,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/mataneko/developments/new-manasuke/.venv/lib/python3.13/site-packages/openai/_base_client.py", line 1014, in __init__
+    self._client = http_client or SyncHttpxClientWrapper(
+                                  ~~~~~~~~~~~~~~~~~~~~~~^
+        base_url=base_url,
+        ^^^^^^^^^^^^^^^^^^
+        # cast to a valid type because mypy doesn't understand our type narrowing
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        timeout=cast(Timeout, timeout),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/mataneko/developments/new-manasuke/.venv/lib/python3.13/site-packages/openai/_base_client.py", line 938, in __init__
+    super().__init__(**kwargs)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/mataneko/developments/new-manasuke/.venv/lib/python3.13/site-packages/httpx2/_client.py", line 662, in __init__
+    self._transport = self._init_transport(
+                      ~~~~~~~~~~~~~~~~~~~~^
+        verify=verify,
+        ^^^^^^^^^^^^^^
+    ...<5 lines>...
+        transport=transport,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/mataneko/developments/new-manasuke/.venv/lib/python3.13/site-packages/httpx2/_client.py", line 703, in _init_transport
+    return HTTPTransport(
+        verify=verify,
+    ...<4 lines>...
+        limits=limits,
+    )
+  File "/home/mataneko/developments/new-manasuke/.venv/lib/python3.13/site-packages/httpx2/_transports/default.py", line 149, in __init__
+    ssl_context = create_ssl_context(verify=verify, cert=cert, trust_env=trust_env)
+  File "/home/mataneko/developments/new-manasuke/.venv/lib/python3.13/site-packages/httpx2/_config.py", line 41, in create_ssl_context
+    ctx = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+  File "/home/mataneko/.local/share/uv/python/cpython-3.13.9-linux-x86_64-gnu/lib/python3.13/ssl.py", line 438, in __new__
+    self = _SSLContext.__new__(cls, protocol)
+ssl.SSLError: unknown error (_ssl.c:3134)
+2026-10-16 22:07:24,719 INFO plan_generation_started participant_id=test-001 operation_type=INITIAL
+2026-10-16 22:07:24,869 INFO plan_created participant_id=test-001 operation_type=INITIAL attempt_id=1 plan_id=1 version_no=1 effective_from=2026-10-16T22:10:00+09:00 horizon_end=2026-10-23T00:00:00+09:00
+2026-10-17 07:51:49,483 INFO plan_generation_started participant_id=test-001 operation_type=REPLAN_NOW
+2026-10-17 07:51:49,695 INFO plan_created participant_id=test-001 operation_type=REPLAN_NOW attempt_id=2 plan_id=2 version_no=2 effective_from=2026-10-17T07:55:00+09:00 horizon_end=2026-10-24T00:00:00+09:00
