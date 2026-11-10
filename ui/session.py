@@ -8,8 +8,10 @@ from repositories.participant_repository import (
     ParticipantRepository,
 )
 from ui.runtime import (
+    get_auth_mode,
     get_db_path,
     get_participant_invite_keys,
+    get_shared_experiment_access_key,
 )
 
 
@@ -56,9 +58,14 @@ def authenticate(
     if not normalized_participant_id:
         return False
 
-    # Authorization is bound to the selected participant ID.
-    # Never fall back to a shared project-wide key.
-    expected = get_participant_invite_keys().get(normalized_participant_id)
+    # Shared mode must be explicitly enabled; otherwise preserve the
+    # participant-scoped invitation scheme without any fallback.
+    mode = get_auth_mode()
+    if mode == "shared":
+        expected = get_shared_experiment_access_key()
+    else:
+        expected = get_participant_invite_keys().get(normalized_participant_id)
+
     if expected is None or not hmac.compare_digest(access_key, expected):
         return False
 

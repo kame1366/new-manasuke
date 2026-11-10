@@ -67,3 +67,25 @@ def get_participant_invite_keys() -> dict[str, str]:
     if len(set(parsed.values())) != len(parsed):
         raise RuntimeError("Invite keys must be unique for each participant")
     return parsed
+
+
+def get_auth_mode() -> str:
+    """Explicitly select per-participant or shared-key authentication.
+
+    Default remains the original, safer per-participant mode.
+    """
+    mode = os.getenv("MANASUKE_AUTH_MODE", "individual").strip().lower()
+    if mode not in {"individual", "shared"}:
+        raise RuntimeError("MANASUKE_AUTH_MODE must be individual or shared")
+    return mode
+
+
+def get_shared_experiment_access_key() -> str:
+    """Read the shared experiment key from server environment only.
+
+    This mode is intended solely for small, trusted experiments.
+    """
+    key = os.getenv("MANASUKE_EXPERIMENT_ACCESS_KEY", "")
+    if not key or not key.strip() or key != key.strip():
+        raise RuntimeError("MANASUKE_EXPERIMENT_ACCESS_KEY is not configured")
+    return key
