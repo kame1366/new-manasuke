@@ -644,18 +644,27 @@ st.caption(
     )
 )
 
-with st.container(key="manasuke_nav"):
+
+with st.container(key = "manasuke_nav"):
     col1, col2, col3, col4 = st.columns(4, gap="medium")
 
     with col1:
         if st.button(
             "学習設定",
-            icon=":material/menu_book:",
+            icon=":material/settings:",
             width="stretch"
         ):
             st.switch_page("pages/01_learning_settings.py")
 
     with col2:
+        if st.button(
+            "学習計画",
+            icon=":material/calendar_month:",
+            width="stretch"
+        ):
+            st.switch_page("pages/02_plan.py")
+
+    with col3:
         if st.button(
             "学習記録",
             icon=":material/edit_note:",
@@ -663,7 +672,7 @@ with st.container(key="manasuke_nav"):
         ):
             st.switch_page("pages/03_today_and_results.py")
 
-    with col3:
+    with col4:
         if st.button(
             "ホーム",
             icon=":material/home:",
