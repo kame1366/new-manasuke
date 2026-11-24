@@ -2151,20 +2151,23 @@ with tab_time:
         st.session_state[version_key] = version
 
 
-    def update_slot(
-        day: int,
-        slot_id: int,
-        field: str,
-        widget_key: str,
-    ) -> None:
-        """UIの変更を編集用データへ反映する。"""
+    def sync_draft_from_widget_state() -> None:
+        """Widget Stateからドラフトへ最新値を反映する。"""
 
-        new_value = st.session_state[widget_key]
+        for current_day in range(7):
+            for slot in st.session_state[draft_key][current_day]:
+                start_key = f"{prefix}_start_{slot['id']}"
+                end_key = f"{prefix}_end_{slot['id']}"
 
-        for slot in st.session_state[draft_key][day]:
-            if slot["id"] == slot_id:
-                slot[field] = new_value
-                break
+                if start_key in st.session_state:
+                    slot["start"] = st.session_state[start_key]
+                if end_key in st.session_state:
+                    slot["end"] = st.session_state[end_key]
+
+
+    # ボタン操作時のon_change競合を避け、すべての操作で
+    # 最新のselectbox値をドラフトに反映する。
+    sync_draft_from_widget_state()
 
 
     # 5分単位の時刻選択肢
@@ -2206,8 +2209,6 @@ with tab_time:
                 options=START_TIMES,
                 index=START_TIMES.index(slot["start"]),
                 key=start_key,
-                on_change=update_slot,
-                args=(day, slot["id"], "start", start_key),
             )
 
         with col_end:
@@ -2216,8 +2217,6 @@ with tab_time:
                 options=END_TIMES,
                 index=END_TIMES.index(slot["end"]),
                 key=end_key,
-                on_change=update_slot,
-                args=(day, slot["id"], "end", end_key),
             )
 
         with col_delete:
