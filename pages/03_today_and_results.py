@@ -645,7 +645,7 @@ st.caption(
 )
 
 with st.container(key="manasuke_nav"):
-    col1, col2, col3 = st.columns(4, gap="medium")
+    col1, col2, col3, col4 = st.columns(4, gap="medium")
 
     with col1:
         if st.button(
