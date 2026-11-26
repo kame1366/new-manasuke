@@ -12,13 +12,29 @@ PAGE_TARGETS = {
 def render_navigation(current_page: str) -> None:
     selected_page = st_navbar(
         list(PAGE_TARGETS),
-        selected=current_page,
+        selected=(
+            current_page
+            if current_page in PAGE_TARGETS
+            else None
+        ),
         styles={
             "div": {
                 "max-width": "64rem",
             },
         },
         adjust=False,
+    )
+    st.html(
+        """
+        <style>
+        header[data-testid="stHeader"] {
+            display: none;
+        }
+        div[data-testid="stMainBlockContainer"] {
+            padding-top: 0 !important;
+        }
+        </style>
+        """
     )
 
     target = PAGE_TARGETS.get(selected_page)
