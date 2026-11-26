@@ -29,6 +29,7 @@ from ui.formatters import (
 from ui.messages import (
     user_message_for_exception,
 )
+from ui.navigation import render_navigation
 from ui.runtime import get_db_path
 from ui.session import require_participant
 
@@ -46,47 +47,6 @@ from services.plan_version_status_service import (
 logger = logging.getLogger(
     __name__
 )
-
-
-st.markdown("""
-<style>
-.st-key-manasuke_nav button {
-    width: 100%;
-    min-height: 90px;
-    border-radius: 16px;
-    border: 1px solid #dbeafe;
-    background: #f8fbff;
-    color: #1e3a5f;
-    font-size: 16px;
-    font-weight: 600;
-    transition: all 0.2s ease;
-}
-
-/* マウスを乗せたとき */
-.st-key-manasuke_nav button:hover {
-    background: #eff6ff;
-    border-color: #3b82f6;
-    color: #1d4ed8;
-    transform: translateY(-3px);
-    box-shadow: 0 6px 18px rgba(59, 130, 246, 0.12);
-}
-
-/* キーボード操作時 */
-.st-key-manasuke_nav button:focus-visible {
-    outline: 3px solid #93c5fd;
-    outline-offset: 2px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .st-key-manasuke_nav button {
-        transition: none;
-    }
-    .st-key-manasuke_nav button:hover {
-        transform: none;
-    }
-}
-</style>
-""", unsafe_allow_html=True)
 
 
 def request_plan_generation(operation_type):
@@ -128,6 +88,7 @@ st.set_page_config(
     layout="wide",
 )
 
+render_navigation("学習計画")
 
 participant_id = require_participant()
 db_path = get_db_path()
@@ -160,42 +121,6 @@ generation_service = (
 st.title(
     "学習計画"
 )
-
-with st.container(key = "manasuke_nav"):
-    col1, col2, col3, col4 = st.columns(4, gap="medium")
-
-    with col1:
-        if st.button(
-            "学習設定",
-            icon=":material/settings:",
-            width="stretch"
-        ):
-            st.switch_page("pages/01_learning_settings.py")
-
-    with col2:
-        if st.button(
-            "学習計画",
-            icon=":material/calendar_month:",
-            width="stretch"
-        ):
-            st.switch_page("pages/02_plan.py")
-
-    with col3:
-        if st.button(
-            "学習記録",
-            icon=":material/edit_note:",
-            width="stretch"
-        ):
-            st.switch_page("pages/03_today_and_results.py")
-
-    with col4:
-        if st.button(
-            "ホーム",
-            icon=":material/home:",
-            width="stretch"
-        ):
-            st.switch_page("app.py")
-
 
 # =========================================
 # 進行中Attemptの復元

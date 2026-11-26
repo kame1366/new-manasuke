@@ -10,6 +10,7 @@ dependencies = [
     "pydantic>=2.13.5",
     "python-dotenv>=1.2.4",
     "streamlit>=1.64.0",
+    "streamlit-navigation-bar>=3.3.0",
 ]
 
 [dependency-groups]
