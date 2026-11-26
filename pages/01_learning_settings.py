@@ -804,8 +804,6 @@ with tab_targets:
 
 
 with tab_goals:
-    st.divider()
-
     st.subheader(
         "目標"
     )
@@ -1872,8 +1870,6 @@ with tab_archive:
 
     if flash:
         st.success(flash)
-
-    st.divider()
 
     st.subheader("アーカイブ・復元")
 
