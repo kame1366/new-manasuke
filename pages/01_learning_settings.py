@@ -212,13 +212,6 @@ st.title(
     "学習設定"
 )
 
-st.caption(
-    "学習対象・目標・学習方針・"
-    "利用可能時間を確認/編集できます。"
-)
-st.caption("登録した内容を確認できます。追加・編集が必要なときだけフォームを開いてください。")
-
-
 # =====================================================
 # Plan Version Notice
 # =====================================================
@@ -311,9 +304,6 @@ else:
                 width="stretch"
             ):
                 st.switch_page("app.py")
-
-
-st.divider()
 
 
 try:
@@ -547,11 +537,6 @@ with tab_targets:
                 st.session_state[next_id_key] = 1
 
             if advanced:
-                st.caption(
-                    "学習する順番に、重複しない範囲を"
-                    "追加してください。"
-                )
-
                 for range_id in list(st.session_state[ids_key]):
                     col1, col2, col3 = st.columns([4, 4, 2])
 
@@ -621,10 +606,6 @@ with tab_targets:
         # =================================================
 
         st.markdown("### 学習方針")
-        st.caption(
-            "初期値を用意しています。"
-            "必要に応じて自由に変更できます。"
-        )
 
         purpose = st.text_area(
             "学習する目的",
@@ -948,7 +929,6 @@ with tab_goals:
                             for item in ordered_ranges
                         )
                     )
-
                     current = selected_target.next_position
 
                     default_start = (
@@ -994,11 +974,6 @@ with tab_goals:
                                 ),
                             )
                         )
-
-                    st.caption(
-                        "教材の学習範囲に空白がある場合は、"
-                        "登録時にその部分を除外します。"
-                    )
 
                 else:
                     st.error(
@@ -1168,9 +1143,6 @@ with tab_goals:
                 st.write(f"目標範囲：{ranges_text}")
             if goal.note:
                 st.caption(goal.note)
-
-
-st.divider()
 
 
 with tab_targets:
@@ -1565,12 +1537,6 @@ with tab_goals:
                 ):
                     st.markdown("**目標範囲**")
 
-                    st.caption(
-                        "行を追加・削除して目標範囲を"
-                        "編集できます。教材の学習経路に"
-                        "含まれる範囲を指定してください。"
-                    )
-
                     initial_ranges = [
                         {
                             "開始位置": r.start_position,
@@ -1910,10 +1876,6 @@ with tab_archive:
     st.divider()
 
     st.subheader("アーカイブ・復元")
-    st.caption(
-        "今後の計画から除外したり、"
-        "再び学習対象として利用したりできます。"
-    )
 
     st.info(
         "アーカイブしても、"
@@ -2103,10 +2065,6 @@ with tab_time:
     # =====================================================
 
     st.subheader("週の利用可能時間")
-    st.caption(
-        "曜日ごとに学習できる時間を設定します。"
-        "変更は保存ボタンを押すまで反映されません。"
-    )
 
     weekly_service = WeeklyAvailabilityService(db_path)
 
@@ -2264,11 +2222,6 @@ with tab_time:
         key=f"{prefix}_copy_to_{day}",
     )
 
-    st.caption(
-        "コピー先に現在設定されている時間帯は"
-        "置き換えられます。"
-    )
-
     if st.button(
         "選択した曜日にコピー",
         disabled=not copy_targets,
@@ -2295,11 +2248,6 @@ with tab_time:
 
     st.divider()
     st.markdown("**変更の保存**")
-
-    st.caption(
-        "7曜日分の設定をまとめて保存します。"
-        "深夜またぎは保存時に曜日単位へ分割されます。"
-    )
 
     if st.button(
         "変更を保存",
@@ -2662,10 +2610,7 @@ with tab_time:
     render_dated_event_section(
         kind="busy",
         title="学習できない予定",
-        description=(
-            "普段の学習可能時間から除外する"
-            "日時を登録します。"
-        ),
+        description="",
     )
 
     st.divider()
@@ -2673,10 +2618,7 @@ with tab_time:
     render_dated_event_section(
         kind="extra",
         title="追加で使える時間",
-        description=(
-            "普段の設定にない、"
-            "特別に学習できる日時を登録します。"
-        ),
+        description="",
     )
 
     st.divider()

@@ -161,11 +161,6 @@ st.title(
     "学習計画"
 )
 
-st.caption(
-    "7日間の学習計画を確認・更新できます。"
-)
-
-
 with st.container(key = "manasuke_nav"):
     col1, col2, col3, col4 = st.columns(4, gap="medium")
 
@@ -464,10 +459,6 @@ st.divider()
 
 
 st.subheader("7日間の予定")
-st.caption(
-    "この予定は、勉強を始めるための目安です。"
-    "その日の状況に合わせて休憩を取ったり、予定を調整したりできます。"
-)
 
 WEEKDAY_LABELS = ("月", "火", "水", "木", "金", "土", "日")
 start_date = to_jst(plan.effective_from).date()
