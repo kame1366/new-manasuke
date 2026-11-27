@@ -18,8 +18,25 @@ def render_navigation(current_page: str) -> None:
             else None
         ),
         styles={
+            "nav": {
+                "background-color": "#ffffff",
+                "box-shadow": "0 1px 3px rgba(32, 48, 56, 0.12)",
+            },
             "div": {
                 "max-width": "64rem",
+            },
+            "span": {
+                "color": "#34434a",
+                "font-family": "'Noto Sans JP', 'Yu Gothic', sans-serif",
+                "font-size": "1.0rem",
+                "font-weight": "500",
+                "padding": "0.5rem 5rem",
+            },
+            "active": {
+                "background-color": "#e8f2f0",
+            },
+            "hover": {
+                "background-color": "#f2f6f5",
             },
         },
         adjust=False,
