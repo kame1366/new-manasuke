@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import streamlit as st
 
+from ui.navigation import render_navigation
 from ui.session import (
     authenticate,
     current_participant_id,
     is_authenticated,
     logout,
 )
-from ui.navigation import render_navigation
-
 
 st.set_page_config(
     page_title="Manasuke",
@@ -26,10 +25,13 @@ if is_authenticated():
     participant_id = current_participant_id()
     st.success("ログインしています。")
     st.write(f"参加者ID: `{participant_id}`")
+    if st.button("ログアウト"):
+        logout()
+        st.rerun()
 
 else:
     st.subheader(
-        "実験参加"
+        "ログイン"
     )
 
     with st.form(

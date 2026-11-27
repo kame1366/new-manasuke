@@ -281,22 +281,23 @@ with col2:
 
 plan = version_status.active_plan
 
-if plan is None:
-    if version_status.next_plan is not None:
-        st.info(
-            "これから適用される学習計画があります。"
+if plan is None and version_status.next_plan is not None:
+    plan = version_status.next_plan
+    st.info(
+        "これから適用される学習計画があります。"
+    )
+
+    if version_status.next_has_changes:
+        st.warning(
+            "適用予定の計画は古い設定で"
+            "作成されています。"
+            "再計画をおすすめします。"
         )
 
-        if version_status.next_has_changes:
-            st.warning(
-                "適用予定の計画は古い設定で"
-                "作成されています。"
-                "再計画をおすすめします。"
-            )
-    else:
-        st.info(
-            "現在利用できる学習計画はありません。"
-        )
+if plan is None:
+    st.info(
+        "現在利用できる学習計画はありません。"
+    )
 
     if st.button(
         "最初の学習計画を作る",
@@ -312,7 +313,8 @@ if plan is None:
 
 
 if (
-    plan.source_planning_data_version
+    version_status.active_plan is not None
+    and plan.source_planning_data_version
     != version_status.current_version
 ):
     st.warning(
