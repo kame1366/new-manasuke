@@ -1985,7 +1985,7 @@ with tab_time:
     # Weekly Availability Editor
     # =====================================================
 
-    st.subheader("週の利用可能時間")
+    st.subheader("毎週の学習時間")
 
     weekly_service = WeeklyAvailabilityService(db_path)
 
@@ -2126,101 +2126,97 @@ with tab_time:
         st.rerun()
 
 
-    # =====================================================
-    # Copy to other weekdays
-    # =====================================================
-
     st.divider()
-    st.markdown("**他の曜日へコピー**")
+    copy_column, save_column = st.columns(2)
 
-    copy_targets = st.multiselect(
-        "コピー先の曜日",
-        options=[
-            value for value in range(7)
-            if value != day
-        ],
-        format_func=lambda value: WEEKDAY_LABELS[value],
-        key=f"{prefix}_copy_to_{day}",
-    )
+    with copy_column:
+        st.markdown("**他の曜日へコピー**")
 
-    if st.button(
-        "選択した曜日にコピー",
-        disabled=not copy_targets,
-        key=f"{prefix}_copy",
-    ):
-        source_slots = st.session_state[draft_key][day]
+        copy_targets = st.multiselect(
+            "コピー先の曜日",
+            options=[
+                value for value in range(7)
+                if value != day
+            ],
+            format_func=lambda value: WEEKDAY_LABELS[value],
+            key=f"{prefix}_copy_to_{day}",
+        )
 
-        for target_day in copy_targets:
-            st.session_state[draft_key][target_day] = [
-                {
-                    "id": new_slot_id(),
-                    "start": slot["start"],
-                    "end": slot["end"],
-                }
-                for slot in source_slots
-            ]
+        if st.button(
+            "選択した曜日にコピー",
+            disabled=not copy_targets,
+            key=f"{prefix}_copy",
+        ):
+            source_slots = st.session_state[draft_key][day]
 
-        st.rerun()
+            for target_day in copy_targets:
+                st.session_state[draft_key][target_day] = [
+                    {
+                        "id": new_slot_id(),
+                        "start": slot["start"],
+                        "end": slot["end"],
+                    }
+                    for slot in source_slots
+                ]
 
-
-    # =====================================================
-    # Save all weekdays
-    # =====================================================
-
-    st.divider()
-    st.markdown("**変更の保存**")
-
-    if st.button(
-        "変更を保存",
-        type="primary",
-        key=f"{prefix}_save",
-    ):
-        weekly_slots = {
-            current_day: [
-                (slot["start"], slot["end"])
-                for slot in st.session_state[draft_key][current_day]
-            ]
-            for current_day in range(7)
-        }
-
-        try:
-            weekly_service.save(
-                participant_id=participant_id,
-                weekly_slots=weekly_slots,
-                expected_version=st.session_state[version_key],
-            )
-
-            # 保存成功後、DBの正規化済みデータを再読込
-            st.session_state.pop(draft_key, None)
-            st.session_state[f"{prefix}_saved"] = True
+            st.session_state[f"{prefix}_copied"] = True
             st.rerun()
 
-        except AvailabilityConflictError as exc:
-            st.error(str(exc))
+        if st.session_state.pop(f"{prefix}_copied", False):
+            st.success("選択した曜日に時間帯をコピーしました。")
 
-        except ValueError as exc:
-            st.error(str(exc))
+    with save_column:
+        st.markdown("**変更の保存**")
 
-        except Exception:
-            logging.getLogger(__name__).exception(
-                "Weekly availability save failed"
-            )
-            st.error(
-                "設定の保存に失敗しました。"
-                "開発ログを確認してください。"
-            )
+        if st.button(
+            "変更を保存",
+            type="primary",
+            key=f"{prefix}_save",
+        ):
+            weekly_slots = {
+                current_day: [
+                    (slot["start"], slot["end"])
+                    for slot in st.session_state[draft_key][current_day]
+                ]
+                for current_day in range(7)
+            }
 
+            try:
+                weekly_service.save(
+                    participant_id=participant_id,
+                    weekly_slots=weekly_slots,
+                    expected_version=st.session_state[version_key],
+                )
 
-    if st.session_state.pop(f"{prefix}_saved", False):
-        st.success("学習可能時間を保存しました。")
+                # 保存成功後、DBの正規化済みデータを再読込
+                st.session_state.pop(draft_key, None)
+                st.session_state[f"{prefix}_saved"] = True
+                st.rerun()
 
+            except AvailabilityConflictError as exc:
+                st.error(str(exc))
 
-    if st.button(
-        "変更を破棄して再読み込み",
-        key=f"{prefix}_reload",
-    ):
-        st.session_state.pop(draft_key, None)
-        st.rerun()
+            except ValueError as exc:
+                st.error(str(exc))
+
+            except Exception:
+                logging.getLogger(__name__).exception(
+                    "Weekly availability save failed"
+                )
+                st.error(
+                    "設定の保存に失敗しました。"
+                    "開発ログを確認してください。"
+                )
+
+        if st.session_state.pop(f"{prefix}_saved", False):
+            st.success("学習可能時間を保存しました。")
+
+        if st.button(
+            "変更を破棄して再読み込み",
+            key=f"{prefix}_reload",
+        ):
+            st.session_state.pop(draft_key, None)
+            st.rerun()
 
     st.divider()
 
@@ -2351,33 +2347,44 @@ with tab_time:
             refresh_dated_editor(success_message)
 
 
-    def render_dated_event_section(
-        *,
-        kind: EventKind,
-        title: str,
-        description: str,
-    ):
-        st.subheader(title)
-        st.caption(description)
-
-        records = dated_service.list_events(
-            participant_id=participant_id,
-            kind=kind,
+    def render_dated_event_section():
+        event_kinds: tuple[EventKind, ...] = ("busy", "extra")
+        records = [
+            (kind, record)
+            for kind in event_kinds
+            for record in dated_service.list_events(
+                participant_id=participant_id,
+                kind=kind,
+            )
+        ]
+        records.sort(
+            key=lambda item: (
+                item[1].start_at,
+                item[1].id,
+                item[0],
+            )
         )
-
         revision = st.session_state[event_revision_key]
 
-        # -----------------------------------------
-        # Add
-        # -----------------------------------------
+        st.subheader("日付ごとの時間調整")
 
         with st.expander(
-            "＋ 新しい予定を追加",
-            expanded=not bool(records),
+            "＋ 時間を登録",
+            expanded=False,
         ):
             with st.form(
-                key=f"{event_prefix}_{revision}_{kind}_add"
+                key=f"{event_prefix}_{revision}_add"
             ):
+                selected_kind = st.radio(
+                    "登録する時間",
+                    options=(
+                        "学習できる時間",
+                        "学習しない時間",
+                    ),
+                    horizontal=True,
+                    key=f"{event_prefix}_{revision}_kind",
+                )
+
                 default_day = (
                     now_jst().date() + timedelta(days=1)
                 )
@@ -2396,18 +2403,23 @@ with tab_time:
 
                 start_at, end_at, note = render_datetime_fields(
                     key_prefix=(
-                        f"{event_prefix}_{revision}_{kind}_new"
+                        f"{event_prefix}_{revision}_new"
                     ),
                     default_start=default_start,
                     default_end=default_end,
                 )
 
                 submitted = st.form_submit_button(
-                    "予定を追加",
+                    "時間を登録",
                     type="primary",
                 )
 
             if submitted:
+                kind: EventKind = (
+                    "extra"
+                    if selected_kind == "学習できる時間"
+                    else "busy"
+                )
                 execute_dated_action(
                     lambda: dated_service.save(
                         participant_id=participant_id,
@@ -2420,23 +2432,24 @@ with tab_time:
                             event_version_key
                         ],
                     ),
-                    "予定を追加しました。",
+                    "時間を登録しました。",
                 )
 
-        # -----------------------------------------
-        # List / Edit / Delete
-        # -----------------------------------------
-
-        st.markdown("**登録済みの予定**")
+        st.markdown("**登録済みの時間**")
 
         if not records:
-            st.info("登録済みの予定はありません。")
+            st.info("日付指定の時間はありません。")
 
-        for record in records:
+        for kind, record in records:
             label = record.note or "名称なし"
+            kind_label = (
+                "学習する"
+                if kind == "extra"
+                else "学習しない"
+            )
 
             heading = (
-                f"{label}："
+                f"{kind_label}｜{label}："
                 f"{format_datetime(record.start_at)}"
                 " 〜 "
                 f"{format_datetime(record.end_at)}"
@@ -2526,21 +2539,7 @@ with tab_time:
     if flash:
         st.success(flash)
 
-    st.divider()
-
-    render_dated_event_section(
-        kind="busy",
-        title="学習できない予定",
-        description="",
-    )
-
-    st.divider()
-
-    render_dated_event_section(
-        kind="extra",
-        title="追加で使える時間",
-        description="",
-    )
+    render_dated_event_section()
 
     st.divider()
 
